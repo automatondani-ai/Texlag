@@ -1,4 +1,9 @@
-import { kv } from '@vercel/kv'
+import { Redis } from '@upstash/redis'
+
+const redis = new Redis({
+  url:   process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+})
 
 const RATE_KEYS = ['cpm', 'gas_surcharge', 'hazmat', 'tanker', 'toll_flat']
 
@@ -25,7 +30,7 @@ const CLIENT_TO_KV = Object.fromEntries(
 )
 
 async function getCurrentRates() {
-  const values = await Promise.all(RATE_KEYS.map(k => kv.get(`rates:${k}`)))
+  const values = await Promise.all(RATE_KEYS.map(k => redis.get(`rates:${k}`)))
 
   return Object.fromEntries(
     RATE_KEYS.map((key, i) => [
@@ -91,7 +96,7 @@ export default async function handler(req, res) {
     // Write only the fields that were supplied
     await Promise.all(
       Object.entries(body).map(([clientKey, value]) =>
-        kv.set(`rates:${CLIENT_TO_KV[clientKey]}`, value)
+        redis.set(`rates:${CLIENT_TO_KV[clientKey]}`, value)
       )
     )
 

@@ -1,5 +1,10 @@
-import { kv } from '@vercel/kv'
+import { Redis } from '@upstash/redis'
 import { randomUUID } from 'crypto'
+
+const redis = new Redis({
+  url:   process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+})
 
 const DISTANCE_MATRIX_URL = 'https://maps.googleapis.com/maps/api/distancematrix/json'
 
@@ -42,11 +47,11 @@ async function totalRoadMiles(pickup, dropoffs, apiKey) {
 // Pull rates from KV with sensible defaults if keys aren't seeded yet.
 async function loadRates() {
   const [cpm, gas, hazmat, tanker, tollFlat] = await Promise.all([
-    kv.get('rates:cpm'),
-    kv.get('rates:gas_surcharge'),
-    kv.get('rates:hazmat'),
-    kv.get('rates:tanker'),
-    kv.get('rates:toll_flat'),
+    redis.get('rates:cpm'),
+    redis.get('rates:gas_surcharge'),
+    redis.get('rates:hazmat'),
+    redis.get('rates:tanker'),
+    redis.get('rates:toll_flat'),
   ])
 
   return {
