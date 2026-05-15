@@ -71,7 +71,6 @@ body {
 .nav__links {
   display: flex;
   gap: 4px;
-  margin-left: auto;
 }
 
 .nav__link {
@@ -573,6 +572,127 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px 20px;
+}
+
+/* ── RESPONSIVE ──────────────────────────────────────────────────────────── */
+
+/* ── NAV USER SECTION ────────────────────────────────────────────────────── */
+
+.nav__user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.nav__user-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-700);
+}
+
+.role-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.role-badge--admin {
+  background: var(--blue-light);
+  color: var(--blue-dark);
+}
+
+.role-badge--driver {
+  background: var(--teal-light);
+  color: var(--teal-dark);
+}
+
+.nav__logout {
+  background: none;
+  border: 1.5px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 5px 12px;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-500);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.nav__logout:hover {
+  background: var(--red-light);
+  border-color: #fca5a5;
+  color: var(--red);
+}
+
+/* ── LOGIN PAGE ──────────────────────────────────────────────────────────── */
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(160deg, var(--blue-light) 0%, var(--teal-light) 100%);
+}
+
+.login-card {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: 40px 36px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: var(--shadow-lg);
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 32px;
+}
+
+.login-brand__logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--blue), var(--teal));
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.login-brand__name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--gray-900);
+  letter-spacing: -0.2px;
+}
+
+.login-brand__sub {
+  font-size: 11px;
+  color: var(--gray-400);
+  margin-top: 1px;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-submit {
+  margin-top: 4px;
 }
 
 /* ── RESPONSIVE ──────────────────────────────────────────────────────────── */

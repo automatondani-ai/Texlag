@@ -1,34 +1,33 @@
-import { useState } from 'react'
-import QuoteView from './views/QuoteView'
-import AdminView from './views/AdminView'
+import { useEffect } from 'react'
+import { AuthProvider, useAuth } from './context/AuthContext'
+import LoginPage      from './pages/LoginPage'
+import AdminDashboard from './pages/AdminDashboard'
+import DriverPortal   from './pages/DriverPortal'
 import './index.css'
 
+const ROLE_MAP = {
+  admin:  AdminDashboard,
+  driver: DriverPortal,
+}
+
+function AppRouter() {
+  const { user, logout } = useAuth()
+
+  // Evict tokens that carry an unrecognised role
+  useEffect(() => {
+    if (user && !ROLE_MAP[user.role]) logout()
+  }, [user, logout])
+
+  if (!user) return <LoginPage />
+
+  const Portal = ROLE_MAP[user.role]
+  return Portal ? <Portal /> : null
+}
+
 export default function App() {
-  const [view, setView] = useState('quote')
-
   return (
-    <>
-      <nav className="nav">
-        <div className="nav__inner">
-          <span className="nav__brand">TexLag Express</span>
-          <div className="nav__links">
-            <button
-              className={`nav__link${view === 'quote' ? ' nav__link--active' : ''}`}
-              onClick={() => setView('quote')}
-            >
-              Quote
-            </button>
-            <button
-              className={`nav__link${view === 'admin' ? ' nav__link--active' : ''}`}
-              onClick={() => setView('admin')}
-            >
-              Admin
-            </button>
-          </div>
-        </div>
-      </nav>
-
-      {view === 'quote' ? <QuoteView /> : <AdminView />}
-    </>
+    <AuthProvider>
+      <AppRouter />
+    </AuthProvider>
   )
 }
