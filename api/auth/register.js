@@ -4,6 +4,7 @@ import { requireAdmin } from '../_lib/auth.js'
 
 const VALID_ROLES = ['admin', 'driver']
 const EMAIL_RE    = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const PHONE_RE    = /^\+?[\d\s\-().]{7,20}$/
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -12,7 +13,7 @@ export default async function handler(req, res) {
 
   // ── Admin guard ─────────────────────────────────────────────────────────────
   const admin = requireAdmin(req, res)
-  if (!admin) return // requireAdmin already sent the error response
+  if (!admin) return
 
   // ── Input validation ────────────────────────────────────────────────────────
   const {
@@ -20,7 +21,8 @@ export default async function handler(req, res) {
     password,
     firstName,
     lastName,
-    role = 'driver',
+    phone    = '',
+    role     = 'driver',
   } = req.body ?? {}
 
   if (!email || !EMAIL_RE.test(String(email).trim())) {
@@ -35,6 +37,9 @@ export default async function handler(req, res) {
   if (!lastName || typeof lastName !== 'string' || !lastName.trim()) {
     return res.status(400).json({ error: '`lastName` is required' })
   }
+  if (phone && !PHONE_RE.test(String(phone).trim())) {
+    return res.status(400).json({ error: '`phone` format is invalid' })
+  }
   if (!VALID_ROLES.includes(role)) {
     return res.status(400).json({
       error: `\`role\` must be one of: ${VALID_ROLES.join(', ')}`,
@@ -47,7 +52,7 @@ export default async function handler(req, res) {
   let existing
   try {
     existing = await redis.get(`users:${normalizedEmail}`)
-  } catch (e) {
+  } catch {
     return res.status(502).json({ error: 'Database error' })
   }
 
@@ -62,6 +67,7 @@ export default async function handler(req, res) {
     email:        normalizedEmail,
     firstName:    firstName.trim(),
     lastName:     lastName.trim(),
+    phone:        phone ? String(phone).trim() : '',
     role,
     passwordHash,
     createdAt:    new Date().toISOString(),
@@ -70,11 +76,10 @@ export default async function handler(req, res) {
 
   try {
     await redis.set(`users:${normalizedEmail}`, user)
-  } catch (e) {
+  } catch {
     return res.status(502).json({ error: 'Database error' })
   }
 
-  // Return the new account without the password hash
   const { passwordHash: _, ...safeUser } = user
   return res.status(201).json({ user: safeUser })
 }

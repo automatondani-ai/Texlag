@@ -695,6 +695,176 @@ body {
   margin-top: 4px;
 }
 
+/* ── DASHBOARD LAYOUT ────────────────────────────────────────────────────── */
+
+.dashboard {
+  display: flex;
+  min-height: calc(100vh - 60px); /* 60px = nav height */
+  background: var(--gray-50);
+}
+
+.dashboard__sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: #fff;
+  border-right: 1px solid var(--gray-200);
+  padding: 24px 0;
+}
+
+.sidebar__section-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--gray-400);
+  padding: 0 20px;
+  margin-bottom: 8px;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 10px;
+}
+
+.sidebar-nav__item {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: var(--radius);
+  padding: 9px 12px;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.sidebar-nav__item:hover {
+  background: var(--gray-100);
+  color: var(--gray-800);
+}
+
+.sidebar-nav__item--active {
+  background: var(--blue-light);
+  color: var(--blue);
+  font-weight: 600;
+}
+
+.dashboard__content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* ── VIEW PAGE (used by PricingView, DriversView) ────────────────────────── */
+
+.view-page {
+  max-width: 860px;
+  padding: 36px 32px 80px;
+}
+
+.view-page__header {
+  margin-bottom: 24px;
+}
+
+.view-page__header--row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.view-page__title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--gray-900);
+  letter-spacing: -0.3px;
+}
+
+.view-page__sub {
+  font-size: 13px;
+  color: var(--gray-400);
+  margin-top: 3px;
+}
+
+/* ── DRIVER FORM ─────────────────────────────────────────────────────────── */
+
+.driver-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 20px;
+}
+
+.label-opt {
+  font-weight: 400;
+  color: var(--gray-400);
+  font-size: 11px;
+}
+
+/* ── DRIVERS TABLE ───────────────────────────────────────────────────────── */
+
+.dt-wrap {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.dt {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.dt thead th {
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--gray-400);
+  padding: 11px 16px;
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.dt tbody tr {
+  border-bottom: 1px solid var(--gray-100);
+  transition: background 0.1s;
+}
+
+.dt tbody tr:last-child { border-bottom: none; }
+.dt tbody tr:hover { background: var(--gray-50); }
+
+.dt tbody td {
+  padding: 13px 16px;
+  color: var(--gray-700);
+  vertical-align: middle;
+}
+
+.dt-name {
+  font-weight: 600;
+  color: var(--gray-800);
+}
+
+.dt-empty {
+  color: var(--gray-300);
+}
+
+.dt-empty-state {
+  text-align: center;
+  padding: 56px 0;
+  color: var(--gray-400);
+  font-size: 14px;
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+}
+
 /* ── RESPONSIVE ──────────────────────────────────────────────────────────── */
 
 @media (max-width: 560px) {
