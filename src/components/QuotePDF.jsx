@@ -1,343 +1,505 @@
+import React from 'react'
 import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer'
 
-const fmt     = (n) => `$${Number(n).toFixed(2)}`
-const fmtRate = (r) => `$${Number(r).toFixed(4)}/mi`
+// ── Brand constants ──────────────────────────────────────────────────────────
 
-const C = {
-  blue:      '#2563eb',
-  blueDark:  '#1e40af',
-  teal:      '#0d9488',
-  tealLight: '#f0fdfa',
-  gray50:    '#f8fafc',
-  gray100:   '#f1f5f9',
-  gray200:   '#e2e8f0',
-  gray400:   '#94a3b8',
-  gray500:   '#64748b',
-  gray600:   '#475569',
-  gray700:   '#334155',
-  gray800:   '#1e293b',
-  white:     '#ffffff',
+const BRAND = {
+  name:  'TexLag Express',
+  usdot: 'USDOT Number: 3609656',
+  mc:    'MC-1229052',
+  phone: 'Phone: +1(832) - 944 - 5199',
 }
 
+// ── Design tokens ────────────────────────────────────────────────────────────
+
+const C = {
+  navy:        '#1e293b',
+  navyDark:    '#0f172a',
+  blue:        '#2563eb',
+  teal:        '#0d9488',
+  white:       '#ffffff',
+  gray50:      '#f8fafc',
+  gray100:     '#f1f5f9',
+  gray200:     '#e2e8f0',
+  gray400:     '#94a3b8',
+  gray500:     '#64748b',
+  gray600:     '#475569',
+  gray700:     '#334155',
+  gray800:     '#1e293b',
+  amberBg:     '#fffbeb',
+  amberBorder: '#f59e0b',
+  amberTitle:  '#92400e',
+  amberBody:   '#78350f',
+}
+
+// ── Styles ───────────────────────────────────────────────────────────────────
+
 const s = StyleSheet.create({
-  // ── PAGE
   page: {
     fontFamily: 'Helvetica',
-    fontSize: 10,
-    paddingTop: 44,
-    paddingBottom: 76,
-    paddingHorizontal: 48,
+    fontSize: 9,
     color: C.gray800,
     backgroundColor: C.white,
+    paddingTop: 0,
+    paddingBottom: 72,
+    paddingHorizontal: 0,
   },
 
-  // ── HEADER
+  // ── Header band (full bleed) ──────────────────────────────────────────────
   header: {
+    backgroundColor: C.navy,
+    paddingTop: 28,
+    paddingBottom: 22,
+    paddingHorizontal: 48,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    paddingBottom: 18,
-    marginBottom: 28,
-    borderBottomWidth: 2.5,
-    borderBottomColor: C.blue,
+    marginBottom: 0,
   },
-  brand: {
-    fontSize: 21,
+  headerLeft: {},
+  headerBrand: {
+    fontSize: 22,
     fontFamily: 'Helvetica-Bold',
-    color: C.blue,
-    letterSpacing: 0.4,
+    color: C.white,
+    letterSpacing: 0.5,
+    marginBottom: 6,
   },
-  brandSub: {
-    fontSize: 7.5,
-    color: C.gray400,
-    marginTop: 4,
-    letterSpacing: 1.4,
+  headerMeta: {
+    flexDirection: 'row',
   },
-  quoteWord: {
-    fontSize: 21,
-    fontFamily: 'Helvetica-Bold',
-    color: C.teal,
-    textAlign: 'right',
-  },
-  quoteMeta: {
+  headerMetaText: {
     fontSize: 8,
     color: C.gray400,
-    textAlign: 'right',
-    marginTop: 4,
-    lineHeight: 1.6,
+    marginRight: 16,
+  },
+  headerRight: {
+    alignItems: 'flex-end',
+  },
+  headerQuoteWord: {
+    fontSize: 22,
+    fontFamily: 'Helvetica-Bold',
+    color: C.teal,
+    letterSpacing: 2,
   },
 
-  // ── SECTION
-  section: { marginBottom: 22 },
-  sectionTitle: {
-    fontSize: 7.5,
+  // ── Info bar ──────────────────────────────────────────────────────────────
+  infoBar: {
+    flexDirection: 'row',
+    backgroundColor: C.gray100,
+    borderBottomWidth: 1,
+    borderBottomColor: C.gray200,
+    paddingVertical: 12,
+    paddingHorizontal: 48,
+    marginBottom: 24,
+  },
+  infoCell: {
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 6.5,
     fontFamily: 'Helvetica-Bold',
     color: C.gray400,
-    marginBottom: 10,
-    paddingBottom: 5,
-    borderBottomWidth: 1,
-    borderBottomColor: C.gray100,
-    letterSpacing: 0.8,
+    letterSpacing: 0.7,
+    marginBottom: 3,
+    textTransform: 'uppercase',
   },
-
-  // ── ROUTE ROWS
-  routeRow: { flexDirection: 'row', marginBottom: 5, alignItems: 'flex-start' },
-  routeKey: {
-    width: 62,
-    fontSize: 7.5,
+  infoValue: {
+    fontSize: 9,
     fontFamily: 'Helvetica-Bold',
-    color: C.gray500,
-    paddingTop: 1,
-    letterSpacing: 0.5,
+    color: C.gray800,
   },
-  routeVal: { flex: 1, fontSize: 10, color: C.gray800, lineHeight: 1.4 },
 
-  // ── TABLE
+  // ── Body padding wrapper ──────────────────────────────────────────────────
+  body: {
+    paddingHorizontal: 48,
+  },
+
+  // ── Section ───────────────────────────────────────────────────────────────
+  sectionTitle: {
+    fontSize: 7,
+    fontFamily: 'Helvetica-Bold',
+    color: C.gray400,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+    marginTop: 18,
+  },
+
+  // ── Route rows ────────────────────────────────────────────────────────────
+  routeRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 5,
+  },
+  routeBadge: {
+    fontSize: 6.5,
+    fontFamily: 'Helvetica-Bold',
+    color: C.white,
+    backgroundColor: C.blue,
+    paddingVertical: 2,
+    paddingHorizontal: 5,
+    borderRadius: 3,
+    width: 50,
+    textAlign: 'center',
+    marginRight: 10,
+    marginTop: 1,
+  },
+  routeBadgeTeal: {
+    backgroundColor: C.teal,
+  },
+  routeAddress: {
+    flex: 1,
+    fontSize: 9.5,
+    color: C.gray800,
+    lineHeight: 1.4,
+  },
+  legLine: {
+    fontSize: 7.5,
+    color: C.gray400,
+    marginBottom: 2,
+    marginLeft: 60,
+  },
+
+  // ── Table ─────────────────────────────────────────────────────────────────
   tableHead: {
     flexDirection: 'row',
-    paddingVertical: 6,
+    backgroundColor: C.navy,
+    paddingVertical: 7,
     paddingHorizontal: 10,
-    backgroundColor: C.gray100,
-    borderRadius: 4,
+    borderRadius: 3,
     marginBottom: 1,
   },
   thCell: {
-    fontSize: 7.5,
+    fontSize: 7,
     fontFamily: 'Helvetica-Bold',
-    color: C.gray500,
-    letterSpacing: 0.5,
+    color: C.white,
+    letterSpacing: 0.4,
   },
   tableRow: {
     flexDirection: 'row',
-    paddingVertical: 9,
+    paddingVertical: 7,
     paddingHorizontal: 10,
     borderBottomWidth: 1,
     borderBottomColor: C.gray100,
-    alignItems: 'flex-start',
   },
-  tableRowAlt: { backgroundColor: C.gray50 },
-  tdCell: { fontSize: 10, color: C.gray700 },
-  tdSub:  { fontSize: 7.5, color: C.gray400, marginTop: 2 },
+  tableRowAlt: {
+    backgroundColor: C.gray50,
+  },
+  tdLabel: {
+    fontSize: 8.5,
+    color: C.gray700,
+  },
+  tdMuted: {
+    fontSize: 8.5,
+    color: C.gray500,
+    textAlign: 'right',
+  },
+  tdAmount: {
+    fontSize: 8.5,
+    color: C.gray800,
+    textAlign: 'right',
+  },
 
-  // Column widths — LETTER usable width ≈ 516pt
-  colDesc:   { flex: 1 },
-  colMiles:  { width: 60, textAlign: 'right' },
-  colAmount: { width: 70, textAlign: 'right' },
+  // Column widths
+  colDesc: { flex: 1 },
+  colQty:  { width: 70, textAlign: 'right' },
+  colAmt:  { width: 72, textAlign: 'right' },
 
-  // ── SUBTOTAL / TOTAL
+  // ── Subtotal / total rows ─────────────────────────────────────────────────
   subtotalRow: {
     flexDirection: 'row',
-    paddingVertical: 9,
+    paddingVertical: 7,
     paddingHorizontal: 10,
-    marginTop: 3,
     borderTopWidth: 1,
     borderTopColor: C.gray200,
+    marginTop: 2,
   },
   subtotalLabel: {
     flex: 1,
-    fontSize: 10,
+    fontSize: 9,
     fontFamily: 'Helvetica-Bold',
-    color: C.gray600,
+    color: C.gray500,
   },
   subtotalValue: {
-    width: 70,
-    fontSize: 10,
+    width: 72,
+    fontSize: 9,
     fontFamily: 'Helvetica-Bold',
     color: C.gray600,
     textAlign: 'right',
   },
   totalRow: {
     flexDirection: 'row',
-    paddingVertical: 11,
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: C.blueDark,
-    borderRadius: 5,
-    marginTop: 6,
+    backgroundColor: C.navyDark,
+    borderRadius: 4,
+    marginTop: 5,
     alignItems: 'center',
   },
   totalLabel: {
     flex: 1,
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: 'Helvetica-Bold',
     color: C.white,
   },
+  totalNote: {
+    fontSize: 7,
+    color: C.gray400,
+    fontFamily: 'Helvetica',
+    marginTop: 2,
+  },
   totalValue: {
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: 'Helvetica-Bold',
     color: C.white,
   },
 
-  // ── INTERNAL COST
+  // ── Internal cost ─────────────────────────────────────────────────────────
   internalBox: {
-    marginTop: 10,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    backgroundColor: C.gray50,
-    borderRadius: 4,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: C.gray50,
     borderWidth: 1,
     borderColor: C.gray200,
+    borderRadius: 4,
   },
   internalLabel: {
     fontSize: 7.5,
     fontFamily: 'Helvetica-Bold',
     color: C.gray400,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   internalValue: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: 'Helvetica-Bold',
     color: C.gray600,
   },
 
-  // ── FOOTER
-  footer: {
-    position: 'absolute',
-    bottom: 32,
-    left: 48,
-    right: 48,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: C.gray200,
+  // ── Detention compliance box ───────────────────────────────────────────────
+  complianceBox: {
+    marginTop: 18,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: C.amberBg,
+    borderLeftWidth: 3,
+    borderLeftColor: C.amberBorder,
+    borderRadius: 2,
   },
-  footerText: {
+  complianceTitle: {
     fontSize: 7.5,
-    color: C.gray400,
-    textAlign: 'center',
+    fontFamily: 'Helvetica-Bold',
+    color: C.amberTitle,
+    marginBottom: 4,
+    letterSpacing: 0.3,
+  },
+  complianceBody: {
+    fontSize: 8,
+    color: C.amberBody,
     lineHeight: 1.6,
   },
-  footerBrand: {
+
+  // ── Footer (fixed) ────────────────────────────────────────────────────────
+  footer: {
+    position: 'absolute',
+    bottom: 28,
+    left: 48,
+    right: 48,
+    paddingTop: 9,
+    borderTopWidth: 1,
+    borderTopColor: C.gray200,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  footerPreparedBy: {
+    fontSize: 8,
+    fontFamily: 'Helvetica-Bold',
+    color: C.gray600,
+    marginBottom: 2,
+  },
+  footerSub: {
+    fontSize: 7,
+    color: C.gray400,
+  },
+  footerRight: {
+    alignItems: 'flex-end',
+  },
+  footerIdText: {
     fontSize: 7.5,
     fontFamily: 'Helvetica-Bold',
     color: C.gray500,
-    textAlign: 'center',
-    marginTop: 4,
+    marginBottom: 2,
+  },
+  footerDateText: {
+    fontSize: 7,
+    color: C.gray400,
   },
 })
 
-export default function QuotePDF({ quote }) {
-  const activeItems = Object.entries(quote.lineItems).filter(([, v]) => v !== null)
-  const isTeam      = quote.driverMode === 'team'
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-  const activeOptions = [
-    quote.toggles?.hazmat && 'Hazmat',
-    quote.toggles?.tanker && 'Tanker',
-    quote.toggles?.tolls  && 'Tolls',
-  ].filter(Boolean)
+const fmt = n => `$${Number(n ?? 0).toFixed(2)}`
 
-  const dateStr = new Date(quote.generatedAt).toLocaleDateString('en-US', {
+function itemQty(item) {
+  if (item.days  != null) return `${item.days} day${item.days !== 1 ? 's' : ''}`
+  if (item.miles != null) return `${item.miles} mi`
+  return '—'
+}
+
+// ── Component ────────────────────────────────────────────────────────────────
+
+export default function QuotePDF({ quote, detentionHourlyRate = 75 }) {
+  const detentionOff = !quote.toggles?.detention
+  const activeItems  = Object.entries(quote.lineItems ?? {}).filter(([, v]) => v !== null)
+  const driverName   = `${quote.driver?.firstName ?? ''} ${quote.driver?.lastName ?? ''}`.trim()
+  const isTeam       = quote.driverMode === 'team'
+  const jurisdLabel  = quote.jurisdiction === 'intrastate' ? 'Intrastate' : 'Interstate'
+
+  const dateStr = new Date(quote.generatedAt ?? Date.now()).toLocaleDateString('en-US', {
     year: 'numeric', month: 'long', day: 'numeric',
   })
 
   return (
-    <Document title={quote.quoteId} author="Texlag Express">
+    <Document title={quote.quoteId} author="TexLag Express">
       <Page size="LETTER" style={s.page}>
 
-        {/* ── HEADER */}
+        {/* ── Header ───────────────────────────────────────────────────── */}
         <View style={s.header}>
-          <View>
-            <Text style={s.brand}>TEXLAG EXPRESS</Text>
-            <Text style={s.brandSub}>FREIGHT BROKERAGE</Text>
+          <View style={s.headerLeft}>
+            <Text style={s.headerBrand}>{BRAND.name}</Text>
+            <View style={s.headerMeta}>
+              <Text style={s.headerMetaText}>{BRAND.usdot}</Text>
+              <Text style={s.headerMetaText}>{BRAND.mc}</Text>
+              <Text style={s.headerMetaText}>{BRAND.phone}</Text>
+            </View>
           </View>
-          <View>
-            <Text style={s.quoteWord}>QUOTE</Text>
-            <Text style={s.quoteMeta}>{quote.quoteId}{'\n'}{dateStr}</Text>
+          <View style={s.headerRight}>
+            <Text style={s.headerQuoteWord}>QUOTE</Text>
           </View>
         </View>
 
-        {/* ── ROUTE DETAILS */}
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>ROUTE DETAILS</Text>
+        {/* ── Info bar ─────────────────────────────────────────────────── */}
+        <View style={s.infoBar}>
+          <View style={s.infoCell}>
+            <Text style={s.infoLabel}>Quote ID</Text>
+            <Text style={s.infoValue}>{quote.quoteId}</Text>
+          </View>
+          <View style={s.infoCell}>
+            <Text style={s.infoLabel}>Date</Text>
+            <Text style={s.infoValue}>{dateStr}</Text>
+          </View>
+          <View style={s.infoCell}>
+            <Text style={s.infoLabel}>Jurisdiction</Text>
+            <Text style={s.infoValue}>{jurisdLabel}</Text>
+          </View>
+          <View style={s.infoCell}>
+            <Text style={s.infoLabel}>Driver Mode</Text>
+            <Text style={s.infoValue}>{isTeam ? 'Team (2×)' : 'Solo'}</Text>
+          </View>
+          <View style={s.infoCell}>
+            <Text style={s.infoLabel}>Total Miles</Text>
+            <Text style={s.infoValue}>{quote.totalMiles} mi</Text>
+          </View>
+        </View>
+
+        {/* ── Body ─────────────────────────────────────────────────────── */}
+        <View style={s.body}>
+
+          {/* Route */}
+          <Text style={s.sectionTitle}>Route Details</Text>
 
           <View style={s.routeRow}>
-            <Text style={s.routeKey}>PICKUP</Text>
-            <Text style={s.routeVal}>{quote.pickup}</Text>
+            <Text style={s.routeBadge}>PICKUP</Text>
+            <Text style={s.routeAddress}>{quote.pickup}</Text>
           </View>
 
-          {quote.dropoffs.map((d, i) => (
+          {(quote.dropoffs ?? []).map((d, i) => (
             <View key={i} style={s.routeRow}>
-              <Text style={s.routeKey}>
-                {quote.dropoffs.length > 1 ? `DROP ${i + 1}` : 'DELIVERY'}
+              <Text style={[s.routeBadge, s.routeBadgeTeal]}>
+                {(quote.dropoffs ?? []).length === 1 ? 'DELIVERY' : `DROP ${i + 1}`}
               </Text>
-              <Text style={s.routeVal}>{d}</Text>
+              <Text style={s.routeAddress}>{d}</Text>
             </View>
           ))}
 
-          <View style={s.routeRow}>
-            <Text style={s.routeKey}>DISTANCE</Text>
-            <Text style={s.routeVal}>{quote.totalMiles} miles total</Text>
-          </View>
+          {(quote.legs ?? []).map((leg, i) => (
+            <Text key={i} style={s.legLine}>
+              Leg {i + 1}: {leg.from} → {leg.to} · {leg.miles} mi
+            </Text>
+          ))}
 
-          <View style={s.routeRow}>
-            <Text style={s.routeKey}>DRIVER</Text>
-            <Text style={s.routeVal}>{isTeam ? 'Team (2 drivers)' : 'Solo'}</Text>
-          </View>
+          {/* Quote breakdown */}
+          <Text style={s.sectionTitle}>Quote Breakdown</Text>
 
-          {activeOptions.length > 0 && (
-            <View style={s.routeRow}>
-              <Text style={s.routeKey}>OPTIONS</Text>
-              <Text style={s.routeVal}>{activeOptions.join(', ')}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* ── COST BREAKDOWN */}
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>COST BREAKDOWN</Text>
-
-          {/* Table header */}
           <View style={s.tableHead}>
-            <Text style={[s.thCell, s.colDesc]}>DESCRIPTION</Text>
-            <Text style={[s.thCell, s.colMiles]}>MILES</Text>
-            <Text style={[s.thCell, s.colAmount]}>AMOUNT</Text>
+            <Text style={[s.thCell, s.colDesc]}>Description</Text>
+            <Text style={[s.thCell, s.colQty]}>Quantity</Text>
+            <Text style={[s.thCell, s.colAmt]}>Amount</Text>
           </View>
 
-          {/* Line item rows */}
           {activeItems.map(([key, item], i) => (
             <View key={key} style={[s.tableRow, i % 2 === 1 && s.tableRowAlt]}>
-              <View style={s.colDesc}>
-                <Text style={s.tdCell}>{item.label}</Text>
-                {item.rate != null && (
-                  <Text style={s.tdSub}>{fmtRate(item.rate)}</Text>
-                )}
-              </View>
-              <Text style={[s.tdCell, s.colMiles]}>
-                {item.miles != null ? String(item.miles) : '—'}
-              </Text>
-              <Text style={[s.tdCell, s.colAmount]}>{fmt(item.amount)}</Text>
+              <Text style={[s.tdLabel, s.colDesc]}>{item.label}</Text>
+              <Text style={[s.tdMuted, s.colQty]}>{itemQty(item)}</Text>
+              <Text style={[s.tdAmount, s.colAmt]}>{fmt(item.amount)}</Text>
             </View>
           ))}
 
-          {/* Subtotal */}
+          {/* Core subtotal */}
           <View style={s.subtotalRow}>
-            <Text style={[s.subtotalLabel, s.colDesc]}>Mileage subtotal</Text>
-            <Text style={s.subtotalValue}>{fmt(quote.subtotalMileage)}</Text>
+            <Text style={s.subtotalLabel}>Core Subtotal</Text>
+            <Text style={s.subtotalValue}>{fmt(quote.coreSubtotal)}</Text>
           </View>
 
-          {/* Total */}
+          {/* Final quote */}
           <View style={s.totalRow}>
-            <Text style={s.totalLabel}>Total Quote</Text>
-            <Text style={s.totalValue}>{fmt(quote.totalQuote)}</Text>
+            <View style={s.colDesc}>
+              <Text style={s.totalLabel}>Final Quote</Text>
+              {quote.backhaulApplied && (
+                <Text style={s.totalNote}>Low/No Backhaul surcharge applied (fuel ×2)</Text>
+              )}
+            </View>
+            <Text style={s.totalValue}>{fmt(quote.finalQuote)}</Text>
           </View>
 
           {/* Internal driver cost */}
           <View style={s.internalBox}>
-            <Text style={s.internalLabel}>INTERNAL DRIVER COST (SINGLE-DRIVER BASIS)</Text>
+            <Text style={s.internalLabel}>
+              INTERNAL DRIVER COST — SINGLE-DRIVER PAYABLE (NOT FOR CLIENT DISCLOSURE)
+            </Text>
             <Text style={s.internalValue}>{fmt(quote.internalDriverCost)}</Text>
           </View>
+
+          {/* Detention compliance — shown only when detention is NOT charged */}
+          {detentionOff && (
+            <View style={s.complianceBox}>
+              <Text style={s.complianceTitle}>Detention Policy</Text>
+              <Text style={s.complianceBody}>
+                {`First 2 hours of waiting time are included at no charge. Detention fees will be charged for any additional waiting time beyond the initial 2 hours, at a rate of $${detentionHourlyRate} per hour.`}
+              </Text>
+            </View>
+          )}
+
         </View>
 
-        {/* ── FOOTER */}
+        {/* ── Footer (fixed across all pages) ──────────────────────────── */}
         <View style={s.footer} fixed>
-          <Text style={s.footerText}>
-            {'This quote is valid for 48 hours from the date of issue. All rates are subject to change based on fuel and market conditions.'}
-            {isTeam
-              ? `\nTeam load: client billed at 2× CPM. Driver payable is calculated on a single-driver basis (${fmt(quote.internalDriverCost)}) and should not be disclosed to the client.`
-              : ''}
-          </Text>
-          <Text style={s.footerBrand}>Texlag Express · Freight Brokerage</Text>
+          <View>
+            <Text style={s.footerPreparedBy}>
+              Quote Prepared By: {driverName}
+            </Text>
+            <Text style={s.footerSub}>
+              {BRAND.name} · {BRAND.usdot} · {BRAND.mc} · {BRAND.phone}
+            </Text>
+          </View>
+          <View style={s.footerRight}>
+            <Text style={s.footerIdText}>{quote.quoteId}</Text>
+            <Text style={s.footerDateText}>{dateStr}</Text>
+          </View>
         </View>
 
       </Page>
