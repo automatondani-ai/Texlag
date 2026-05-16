@@ -1,5 +1,5 @@
 import { useAuth } from '../context/AuthContext'
-import QuoteView from '../views/QuoteView'
+import DriverQuoteForm from '../views/DriverQuoteForm'
 
 export default function DriverPortal() {
   const { user, logout } = useAuth()
@@ -18,7 +18,7 @@ export default function DriverPortal() {
         </div>
       </nav>
 
-      <QuoteView />
+      <DriverQuoteForm />
     </>
   )
 }

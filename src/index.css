@@ -865,6 +865,311 @@ body {
   border-radius: var(--radius-lg);
 }
 
+/* ── DRIVER QUOTE FORM ───────────────────────────────────────────────────── */
+
+.driver-quote-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 36px 24px 80px;
+}
+
+.driver-quote-page__title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--gray-900);
+  letter-spacing: -0.3px;
+  margin-bottom: 4px;
+}
+
+.driver-quote-page__sub {
+  font-size: 13px;
+  color: var(--gray-400);
+  margin-bottom: 28px;
+}
+
+/* Jurisdiction toggle */
+.jurisdiction-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.jurisdiction-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 14px 18px;
+  border: 2px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.14s, background 0.14s, box-shadow 0.14s;
+  font-family: var(--font);
+  text-align: left;
+}
+
+.jurisdiction-btn:hover {
+  border-color: var(--blue);
+  background: var(--blue-light);
+}
+
+.jurisdiction-btn--active {
+  border-color: var(--blue);
+  background: var(--blue-light);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.jurisdiction-btn__label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gray-800);
+  margin-bottom: 2px;
+}
+
+.jurisdiction-btn--active .jurisdiction-btn__label {
+  color: var(--blue);
+}
+
+.jurisdiction-btn__desc {
+  font-size: 11px;
+  color: var(--gray-400);
+  font-weight: 400;
+}
+
+/* Trip details 2-col grid */
+.trip-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 20px;
+}
+
+/* Deadhead mode selector */
+.deadhead-modes {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.deadhead-mode-btn {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  background: #fff;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-500);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+
+.deadhead-mode-btn:hover {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.deadhead-mode-btn--active {
+  border-color: var(--blue);
+  background: var(--blue-light);
+  color: var(--blue);
+  font-weight: 600;
+}
+
+.deadhead-location-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.deadhead-location-row .form-input {
+  flex: 1;
+}
+
+.gps-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.deadhead-status {
+  font-size: 12px;
+  color: var(--green);
+  font-weight: 500;
+  margin-top: 6px;
+}
+
+.deadhead-status--err {
+  color: var(--red);
+}
+
+/* Option rows (toggles with inline inputs) */
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.option-col {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.option-col label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-700);
+  cursor: pointer;
+  user-select: none;
+}
+
+.option-amount {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.option-amount .form-input {
+  width: 110px;
+  text-align: right;
+}
+
+.option-divider {
+  border: none;
+  border-top: 1px solid var(--gray-100);
+  margin: 0;
+}
+
+/* Detention compliance text */
+.detention-compliance {
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--gray-400);
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin-top: 8px;
+}
+
+/* Operational notes panel */
+.notes-panel {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.notes-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--gray-100);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.notes-panel__header span {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--gray-500);
+}
+
+.notes-lock {
+  font-size: 11px;
+  color: var(--gray-400);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.notes-list {
+  list-style: none;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.notes-list__item {
+  font-size: 12px;
+  color: var(--gray-600);
+  line-height: 1.5;
+  padding-left: 14px;
+  position: relative;
+}
+
+.notes-list__item::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: var(--gray-300);
+}
+
+/* Quote result card (driver portal) */
+.quote-result-card {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.quote-result-card__header {
+  background: var(--gray-800);
+  color: #fff;
+  padding: 16px 20px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.quote-result-card__header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+}
+
+.quote-result-card__total {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.quote-result-card__body {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quote-result-card__row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--gray-600);
+}
+
+.quote-result-card__row strong {
+  color: var(--gray-800);
+  font-weight: 600;
+}
+
+.quote-result-card__id {
+  font-size: 11px;
+  color: var(--gray-300);
+  padding: 8px 20px 14px;
+}
+
 /* ── RESPONSIVE ──────────────────────────────────────────────────────────── */
 
 @media (max-width: 560px) {
@@ -874,4 +1179,9 @@ body {
   .toggles-grid { grid-template-columns: 1fr; }
   .quote-result__header { padding: 16px 18px; }
   .quote-result__body { padding: 18px; }
+  .jurisdiction-toggle { grid-template-columns: 1fr; }
+  .trip-details-grid { grid-template-columns: 1fr; }
+  .deadhead-modes { flex-wrap: wrap; }
+  .deadhead-location-row { flex-direction: column; align-items: stretch; }
+  .driver-quote-page { padding: 24px 16px 60px; }
 }
