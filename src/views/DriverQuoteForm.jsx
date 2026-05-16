@@ -1,7 +1,5 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { pdf } from '@react-pdf/renderer'
-import QuotePDF from '../components/QuotePDF'
 
 // ── Static content ──────────────────────────────────────────────────────────
 
@@ -138,20 +136,31 @@ export default function DriverQuoteForm() {
     )
   }
 
-  // ── Client-side PDF download ───────────────────────────────────────────────
+  // ── Download PDF via POST /api/generate-pdf ───────────────────────────────
   async function downloadPDF() {
     if (!quote) return
     setPdfLoading(true)
     try {
-      const blob = await pdf(<QuotePDF quote={quote} />).toBlob()
+      const res = await fetch('/api/generate-pdf', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body:    JSON.stringify({ quote }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? `Server error ${res.status}`)
+      }
+      const blob = await res.blob()
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
       a.href     = url
       a.download = `TexLag-Quote-${quote.quoteId}.pdf`
+      document.body.appendChild(a)
       a.click()
+      document.body.removeChild(a)
       URL.revokeObjectURL(url)
     } catch (e) {
-      console.error('PDF generation error:', e)
+      console.error('[downloadPDF]', e)
     } finally {
       setPdfLoading(false)
     }
@@ -601,7 +610,7 @@ function QuoteResultCard({
           </p>
           <form onSubmit={onSend} style={{ display: 'flex', gap: 8 }}>
             <input
-              className="form-input"
+              className="input"
               type="email"
               placeholder="broker@example.com"
               value={brokerEmail}
