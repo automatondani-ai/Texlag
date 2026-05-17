@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import QuoteView   from '../views/QuoteView'
 import PricingView from '../views/PricingView'
 import DriversView from '../views/DriversView'
+import logoUrl     from '../assets/texlag-logo.avif'
 
 const SIDEBAR = [
   { key: 'pricing', label: 'Pricing Variables' },
@@ -19,7 +20,10 @@ export default function AdminDashboard() {
       {/* ── Top nav ─────────────────────────────────────────────────────────── */}
       <nav className="nav">
         <div className="nav__inner">
-          <span className="nav__brand">TexLag Express</span>
+          <div className="nav__brand">
+            <img src={logoUrl} alt="TexLag Express" className="nav__logo" />
+            <span>TexLag Express</span>
+          </div>
 
           <div className="nav__links">
             <button

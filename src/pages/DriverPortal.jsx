@@ -1,5 +1,6 @@
 import { useAuth } from '../context/AuthContext'
 import DriverQuoteForm from '../views/DriverQuoteForm'
+import logoUrl from '../assets/texlag-logo.avif'
 
 export default function DriverPortal() {
   const { user, logout } = useAuth()
@@ -8,7 +9,10 @@ export default function DriverPortal() {
     <>
       <nav className="nav">
         <div className="nav__inner">
-          <span className="nav__brand">TexLag Express</span>
+          <div className="nav__brand">
+            <img src={logoUrl} alt="TexLag Express" className="nav__logo" />
+            <span>TexLag Express</span>
+          </div>
 
           <div className="nav__user">
             <span className="nav__user-name">{user.firstName} {user.lastName}</span>

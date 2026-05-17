@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import logoUrl from '../assets/texlag-logo.avif'
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -34,8 +35,8 @@ export default function LoginPage() {
 
         {/* Brand */}
         <div className="login-brand">
-          <div className="login-brand__logo">TE</div>
-          <div>
+          <img src={logoUrl} alt="TexLag Express" className="login-brand__logo" />
+          <div className="login-brand__text">
             <div className="login-brand__name">TexLag Express</div>
             <div className="login-brand__sub">Freight Brokerage Portal</div>
           </div>

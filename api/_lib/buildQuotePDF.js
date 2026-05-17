@@ -7,7 +7,8 @@
  */
 
 import { createElement as h } from 'react'
-import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer'
+import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer'
+import { LOGO_BASE64 } from './logoBase64.js'
 
 // ── Brand ────────────────────────────────────────────────────────────────────
 
@@ -54,12 +55,22 @@ const s = StyleSheet.create({
   },
   header: {
     backgroundColor: C.navy,
-    paddingTop: 28,
-    paddingBottom: 22,
+    paddingTop: 24,
+    paddingBottom: 20,
     paddingHorizontal: 48,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerLogo: {
+    width: 52,
+    height: 52,
+    marginRight: 14,
+    objectFit: 'contain',
   },
   headerBrand: {
     fontSize: 22,
@@ -319,12 +330,15 @@ export function buildDocument(quote, detentionHourlyRate = 75) {
 
       // Header
       h(View, { style: s.header },
-        h(View, null,
-          h(Text, { style: s.headerBrand }, BRAND.name),
-          h(View, { style: s.headerMeta },
-            h(Text, { style: s.headerMetaText }, BRAND.usdot),
-            h(Text, { style: s.headerMetaText }, BRAND.mc),
-            h(Text, { style: s.headerMetaText }, BRAND.phone),
+        h(View, { style: s.headerLeft },
+          h(Image, { src: LOGO_BASE64, style: s.headerLogo }),
+          h(View, null,
+            h(Text, { style: s.headerBrand }, BRAND.name),
+            h(View, { style: s.headerMeta },
+              h(Text, { style: s.headerMetaText }, BRAND.usdot),
+              h(Text, { style: s.headerMetaText }, BRAND.mc),
+              h(Text, { style: s.headerMetaText }, BRAND.phone),
+            ),
           ),
         ),
         h(View, { style: { alignItems: 'flex-end' } },
