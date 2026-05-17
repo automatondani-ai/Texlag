@@ -329,7 +329,8 @@ function itemQty(item) {
 
 export default function QuotePDF({ quote, detentionHourlyRate = 75 }) {
   const detentionOff = !quote.toggles?.detention
-  const activeItems  = Object.entries(quote.lineItems ?? {}).filter(([, v]) => v !== null)
+  const activeItems  = Object.entries(quote.lineItems ?? {})
+    .filter(([k, v]) => v !== null && k !== 'backhaulSurcharge')
   const driverName   = `${quote.driver?.firstName ?? ''} ${quote.driver?.lastName ?? ''}`.trim()
   const isTeam       = quote.driverMode === 'team'
   const jurisdLabel  = quote.jurisdiction === 'intrastate' ? 'Intrastate' : 'Interstate'
