@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback } from 'react'
 
 const TOKEN_KEY = 'texlag_token'
+const MCP_KEY   = 'texlag_mcp'   // mustChangePassword
 
 /**
  * Decode a JWT payload without verifying the signature.
@@ -27,23 +28,37 @@ export function AuthProvider({ children }) {
     return token ? decodeJWT(token) : null
   })
 
-  /** Store a fresh token and derive user state from it. */
-  const login = useCallback((token) => {
+  const [mustChangePassword, setMustChangePassword] = useState(
+    () => localStorage.getItem(MCP_KEY) === 'true'
+  )
+
+  /** Store a fresh token and the mustChangePassword flag. */
+  const login = useCallback((token, mustChange = false) => {
     localStorage.setItem(TOKEN_KEY, token)
+    localStorage.setItem(MCP_KEY, String(mustChange))
     setUser(decodeJWT(token))
+    setMustChangePassword(mustChange)
   }, [])
 
   /** Clear the token and sign the user out. */
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(MCP_KEY)
     setUser(null)
+    setMustChangePassword(false)
+  }, [])
+
+  /** Called after a successful password change — unblocks the portal. */
+  const clearPasswordFlag = useCallback(() => {
+    localStorage.setItem(MCP_KEY, 'false')
+    setMustChangePassword(false)
   }, [])
 
   /** Return the raw token string for use in Authorization headers. */
   const getToken = useCallback(() => localStorage.getItem(TOKEN_KEY), [])
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, getToken }}>
+    <AuthContext.Provider value={{ user, login, logout, getToken, mustChangePassword, clearPasswordFlag }}>
       {children}
     </AuthContext.Provider>
   )

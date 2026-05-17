@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 
-const EMPTY_FORM = { firstName: '', lastName: '', email: '', phone: '', password: '' }
+const EMPTY_FORM = { firstName: '', lastName: '', email: '', phone: '' }
 
 function DriverRow({ driver }) {
   const joined = new Date(driver.createdAt).toLocaleDateString('en-US', {
@@ -140,10 +140,10 @@ export default function DriversView() {
                   onChange={e => setField('phone', e.target.value)} />
               </div>
               <div className="field" style={{ gridColumn: '1 / -1' }}>
-                <label className="label">Temporary Password</label>
-                <input className="input" type="password" placeholder="Min. 8 characters" value={form.password}
-                  onChange={e => setField('password', e.target.value)} required minLength={8} />
-                <span className="hint">Driver should change this on first login.</span>
+                <span className="hint" style={{ fontSize: 12, color: 'var(--gray-500)' }}>
+                  A temporary password will be set automatically and emailed to the driver.
+                  They will be required to change it on first login.
+                </span>
               </div>
             </div>
 

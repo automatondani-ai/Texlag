@@ -22,7 +22,7 @@ export default function LoginPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
-      login(data.token) // triggers re-render in App → routes to portal
+      login(data.token, data.mustChangePassword === true)
     } catch (e) {
       setError(e.message)
     } finally {
