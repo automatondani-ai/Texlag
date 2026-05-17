@@ -1,9 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
-  --blue:         #2563eb;
-  --blue-dark:    #1e40af;
-  --blue-light:   #eff6ff;
+  --blue:         #045184;
+  --blue-dark:    #033d63;
+  --blue-light:   #e5f0f8;
   --teal:         #0d9488;
   --teal-dark:    #0f766e;
   --teal-light:   #f0fdfa;
@@ -210,7 +210,7 @@ body {
 
 .input:focus {
   border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(37,99,235,.10);
+  box-shadow: 0 0 0 3px rgba(4,81,132,.10);
 }
 
 .input::placeholder { color: var(--gray-400); }
@@ -416,14 +416,14 @@ body {
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btn--primary {
-  background: linear-gradient(135deg, var(--blue) 0%, #1d4ed8 100%);
+  background: linear-gradient(135deg, var(--blue) 0%, #033d63 100%);
   color: #fff;
-  box-shadow: 0 1px 3px rgba(37,99,235,.35);
+  box-shadow: 0 1px 3px rgba(4,81,132,.35);
 }
 
 .btn--primary:not(:disabled):hover {
   opacity: 0.92;
-  box-shadow: 0 4px 12px rgba(37,99,235,.35);
+  box-shadow: 0 4px 12px rgba(4,81,132,.35);
 }
 
 .btn--teal {
@@ -499,7 +499,7 @@ body {
 }
 
 .quote-result__header {
-  background: linear-gradient(135deg, var(--blue) 0%, #1d4ed8 100%);
+  background: linear-gradient(135deg, var(--blue) 0%, #033d63 100%);
   padding: 20px 28px;
   color: #fff;
 }

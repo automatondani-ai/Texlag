@@ -15,7 +15,7 @@ const BRAND = {
 const C = {
   navy:        '#1e293b',
   navyDark:    '#0f172a',
-  blue:        '#2563eb',
+  blue:        '#045184',
   teal:        '#0d9488',
   white:       '#ffffff',
   gray50:      '#f8fafc',
