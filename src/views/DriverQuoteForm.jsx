@@ -446,11 +446,6 @@ export default function DriverQuoteForm() {
                 </div>
               )}
             </div>
-            {!detention && (
-              <p className="detention-compliance">
-                Detention charges apply after 2 hours of free waiting time.
-              </p>
-            )}
           </div>
 
           <div className="option-divider" />
