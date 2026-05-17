@@ -1145,6 +1145,253 @@ body {
 
 .cpw-signout:hover { color: var(--red); }
 
+/* ── SUMMARY CARDS ───────────────────────────────────────────────────────── */
+
+.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 8px;
+}
+
+.summary-card {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: 20px 22px;
+  box-shadow: var(--shadow-sm);
+}
+
+.summary-card__value {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  line-height: 1;
+  margin-bottom: 6px;
+  color: var(--gray-800);
+}
+
+.summary-card__value--green { color: var(--green); }
+.summary-card__value--muted { color: var(--gray-400); }
+.summary-card__value--blue  { color: var(--blue); }
+
+.summary-card__label {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── STATUS BADGE ────────────────────────────────────────────────────────── */
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.status-badge--active {
+  background: var(--green-light);
+  color: var(--green);
+  border: 1px solid #86efac;
+}
+
+.status-badge--inactive {
+  background: var(--red-light);
+  color: var(--red);
+  border: 1px solid #fca5a5;
+}
+
+/* ── DANGER OUTLINE BUTTON ───────────────────────────────────────────────── */
+
+.btn--danger-outline {
+  background: #fff;
+  color: var(--red);
+  border: 1.5px solid #fca5a5;
+}
+
+.btn--danger-outline:not(:disabled):hover {
+  background: var(--red-light);
+  border-color: var(--red);
+}
+
+/* ── DRIVER NAME BUTTON (table cell) ─────────────────────────────────────── */
+
+.dt-name-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--blue);
+  cursor: pointer;
+  text-align: left;
+  transition: color 0.15s;
+}
+
+.dt-name-btn:hover {
+  color: var(--blue-dark);
+  text-decoration: underline;
+}
+
+/* ── DRIVER PROFILE PANEL ────────────────────────────────────────────────── */
+
+.driver-profile {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.profile-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-500);
+  cursor: pointer;
+  margin-bottom: 20px;
+  transition: color 0.15s;
+}
+
+.profile-back-btn:hover { color: var(--blue); }
+
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.profile-header__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.profile-header__name {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--gray-900);
+  letter-spacing: -0.4px;
+  margin: 0;
+}
+
+.profile-header__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.profile-info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--gray-200);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 28px;
+}
+
+.profile-info-item {
+  background: #fff;
+  padding: 16px 20px;
+}
+
+.profile-info-item__label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--gray-400);
+  margin-bottom: 5px;
+}
+
+.profile-info-item__value {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--gray-800);
+  word-break: break-all;
+}
+
+.profile-info-item__value--stat {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--blue);
+  letter-spacing: -0.5px;
+}
+
+/* ── QUOTE HISTORY (inside profile) ─────────────────────────────────────── */
+
+.profile-quotes__heading {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--gray-400);
+  margin-bottom: 12px;
+}
+
+.profile-quotes__empty {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 80px;
+  color: var(--gray-400);
+  font-size: 13px;
+}
+
+.quote-id-code {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+  background: var(--gray-100);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--gray-700);
+}
+
+.quote-route {
+  font-size: 12.5px;
+  color: var(--gray-600);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── PAGINATION ──────────────────────────────────────────────────────────── */
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--gray-100);
+}
+
+.pagination__info {
+  font-size: 12px;
+  color: var(--gray-500);
+  font-weight: 500;
+}
+
 .deadhead-location-row .form-input {
   flex: 1;
 }

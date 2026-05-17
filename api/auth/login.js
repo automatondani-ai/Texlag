@@ -40,6 +40,11 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Invalid email or password' })
   }
 
+  // ── Account status check ────────────────────────────────────────────────────
+  if (user.active === false) {
+    return res.status(403).json({ error: 'Account deactivated — contact your administrator' })
+  }
+
   // ── Issue token ─────────────────────────────────────────────────────────────
   const claims = {
     email:     user.email,

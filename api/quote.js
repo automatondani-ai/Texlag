@@ -205,6 +205,24 @@ export default async function handler(req, res) {
   const pl = pickup.trim()
   const dl = dropoffs.map(d => d.trim())
 
+  // ── Persist quote snapshot (fire-and-forget) ────────────────────────────────
+  // Stored for the admin dashboard — does not block the response.
+  const snapshot = {
+    quoteId,
+    generatedAt: new Date().toISOString(),
+    driverEmail: caller.email,
+    driverName:  `${caller.firstName ?? ''} ${caller.lastName ?? ''}`.trim(),
+    pickup:      pl,
+    dropoffs:    dl,
+    totalMiles:  r2(totalMiles),
+    finalQuote,
+  }
+  Promise.all([
+    redis.set(`quote:${quoteId}`, snapshot),
+    redis.lpush(`quotes:driver:${caller.email}`, quoteId),
+    redis.incr('quotes:platform:total'),
+  ]).catch(err => console.error('[quote] snapshot save failed:', err))
+
   return res.status(200).json({
     // ── Identity ──────────────────────────────────────────────────────────────
     quoteId,
