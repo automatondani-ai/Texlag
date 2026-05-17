@@ -254,31 +254,6 @@ const s = StyleSheet.create({
     color: C.white,
   },
 
-  // ── Internal cost ─────────────────────────────────────────────────────────
-  internalBox: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: C.gray50,
-    borderWidth: 1,
-    borderColor: C.gray200,
-    borderRadius: 4,
-  },
-  internalLabel: {
-    fontSize: 7.5,
-    fontFamily: 'Helvetica-Bold',
-    color: C.gray400,
-    letterSpacing: 0.3,
-  },
-  internalValue: {
-    fontSize: 11,
-    fontFamily: 'Helvetica-Bold',
-    color: C.gray600,
-  },
-
   // ── Detention compliance box ───────────────────────────────────────────────
   complianceBox: {
     marginTop: 18,
@@ -464,14 +439,6 @@ export default function QuotePDF({ quote, detentionHourlyRate = 75 }) {
               )}
             </View>
             <Text style={s.totalValue}>{fmt(quote.finalQuote)}</Text>
-          </View>
-
-          {/* Internal driver cost */}
-          <View style={s.internalBox}>
-            <Text style={s.internalLabel}>
-              INTERNAL DRIVER COST — SINGLE-DRIVER PAYABLE (NOT FOR CLIENT DISCLOSURE)
-            </Text>
-            <Text style={s.internalValue}>{fmt(quote.internalDriverCost)}</Text>
           </View>
 
           {/* Detention compliance — shown only when detention is NOT charged */}

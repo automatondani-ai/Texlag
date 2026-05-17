@@ -229,29 +229,6 @@ const s = StyleSheet.create({
     fontFamily: 'Helvetica-Bold',
     color: C.white,
   },
-  internalBox: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: C.gray50,
-    borderWidth: 1,
-    borderColor: C.gray200,
-    borderRadius: 4,
-  },
-  internalLabel: {
-    fontSize: 7.5,
-    fontFamily: 'Helvetica-Bold',
-    color: C.gray400,
-    letterSpacing: 0.3,
-  },
-  internalValue: {
-    fontSize: 11,
-    fontFamily: 'Helvetica-Bold',
-    color: C.gray600,
-  },
   complianceBox: {
     marginTop: 18,
     paddingVertical: 10,
@@ -424,13 +401,6 @@ export function buildDocument(quote, detentionHourlyRate = 75) {
               : null,
           ),
           h(Text, { style: s.totalValue }, fmt(quote.finalQuote)),
-        ),
-
-        h(View, { style: s.internalBox },
-          h(Text, { style: s.internalLabel },
-            'INTERNAL DRIVER COST — SINGLE-DRIVER PAYABLE (NOT FOR CLIENT DISCLOSURE)',
-          ),
-          h(Text, { style: s.internalValue }, fmt(quote.internalDriverCost)),
         ),
 
         detentionOff
