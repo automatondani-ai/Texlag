@@ -15,13 +15,6 @@ const OPERATIONAL_NOTES = [
   'Driver pay is issued on Net-7 terms following signed Proof of Delivery submission.',
 ]
 
-const DETENTION_COMPLIANCE =
-  'Under FMCSA regulations, undue delay of a commercial motor vehicle driver is prohibited. ' +
-  'Shippers and receivers must load/unload within the agreed free time. ' +
-  'Delays beyond the free period must be logged and may be subject to carrier detention charges ' +
-  'per the Rate Confirmation. All detention claims require dispatch authorisation and documented ' +
-  'on-site wait times signed by the facility representative.'
-
 const DEADHEAD_MODES = [
   { value: 'manual',   label: 'Manual Miles'   },
   { value: 'location', label: 'Location-Based'  },
@@ -454,7 +447,9 @@ export default function DriverQuoteForm() {
               )}
             </div>
             {!detention && (
-              <p className="detention-compliance">{DETENTION_COMPLIANCE}</p>
+              <p className="detention-compliance">
+                Detention charges apply after 2 hours of free waiting time.
+              </p>
             )}
           </div>
 
@@ -585,12 +580,13 @@ function QuoteResultCard({
           </tbody>
         </table>
 
-        {/* Detention notice — shown only when detention is NOT charged */}
-        {!quote.toggles?.detention && (
-          <p className="detention-notice">
-            Detention will be charged if loading/unloading exceeds 2 hours of free time.
-          </p>
-        )}
+        {/* Detention notice — always shown; rate appended when detention is charged */}
+        <p className="detention-notice">
+          {quote.toggles?.detention
+            ? `Detention charges apply after 2 hours of free waiting time, at a rate of ${fmt(quote.lineItems?.detentionFee?.amount ?? 0)} per hour.`
+            : 'Detention charges apply after 2 hours of free waiting time.'
+          }
+        </p>
 
         <div className="internal-row">
           <span className="internal-row__label">Internal Driver Cost (single-driver payable)</span>

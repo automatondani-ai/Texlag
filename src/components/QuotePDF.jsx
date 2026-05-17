@@ -442,15 +442,16 @@ export default function QuotePDF({ quote, detentionHourlyRate = 75 }) {
             <Text style={s.totalValue}>{fmt(quote.finalQuote)}</Text>
           </View>
 
-          {/* Detention notice — shown only when detention is NOT charged */}
-          {detentionOff && (
-            <View style={s.complianceBox}>
-              <Text style={s.complianceTitle}>Detention Policy</Text>
-              <Text style={s.complianceBody}>
-                Detention will be charged if loading/unloading exceeds 2 hours of free time.
-              </Text>
-            </View>
-          )}
+          {/* Detention notice — always shown; rate appended when detention is charged */}
+          <View style={s.complianceBox}>
+            <Text style={s.complianceTitle}>Detention Policy</Text>
+            <Text style={s.complianceBody}>
+              {detentionOff
+                ? 'Detention charges apply after 2 hours of free waiting time.'
+                : `Detention charges apply after 2 hours of free waiting time, at a rate of ${fmt(quote.lineItems?.detentionFee?.amount ?? 0)} per hour.`
+              }
+            </Text>
+          </View>
 
         </View>
 

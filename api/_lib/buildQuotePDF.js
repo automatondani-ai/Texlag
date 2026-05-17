@@ -404,14 +404,14 @@ export function buildDocument(quote, detentionHourlyRate = 75) {
           h(Text, { style: s.totalValue }, fmt(quote.finalQuote)),
         ),
 
-        detentionOff
-          ? h(View, { style: s.complianceBox },
-              h(Text, { style: s.complianceTitle }, 'Detention Policy'),
-              h(Text, { style: s.complianceBody },
-                'Detention will be charged if loading/unloading exceeds 2 hours of free time.',
-              ),
-            )
-          : null,
+        h(View, { style: s.complianceBox },
+          h(Text, { style: s.complianceTitle }, 'Detention Policy'),
+          h(Text, { style: s.complianceBody },
+            detentionOff
+              ? 'Detention charges apply after 2 hours of free waiting time.'
+              : `Detention charges apply after 2 hours of free waiting time, at a rate of ${fmt(quote.lineItems?.detentionFee?.amount ?? 0)} per hour.`,
+          ),
+        ),
       ),
 
       // Footer (fixed across all pages)
