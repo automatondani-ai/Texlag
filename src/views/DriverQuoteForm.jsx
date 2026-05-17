@@ -247,6 +247,7 @@ export default function DriverQuoteForm() {
       <div className="page__header">
         <h1 className="page__title">Load Quote</h1>
         <p className="page__subtitle">Configure your load to generate a freight quote.</p>
+        <p className="form-legend"><span aria-hidden="true">*</span> Required field</p>
       </div>
 
       {error && <div className="banner banner--error">{error}</div>}
@@ -276,13 +277,13 @@ export default function DriverQuoteForm() {
           <p className="card__title">Route</p>
 
           <div className="field">
-            <label className="label">Pickup Location</label>
+            <label className="label">Pickup Location <span className="req" aria-hidden="true">*</span></label>
             <input className="input" placeholder="Address or ZIP code"
               value={pickup} onChange={e => setPickup(e.target.value)} />
           </div>
 
           <div className="field" style={{ marginTop: 18 }}>
-            <label className="label">Drop-offs</label>
+            <label className="label">Drop-offs <span className="req" aria-hidden="true">*</span></label>
             <div className="stop-list">
               {dropoffs.map((val, i) => (
                 <div key={i} className="stop-row">

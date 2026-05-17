@@ -47,8 +47,10 @@ export default function LoginPage() {
         {error && <div className="banner banner--error">{error}</div>}
 
         <form className="login-form" onSubmit={handleSubmit} noValidate>
+          <p className="form-legend"><span aria-hidden="true">*</span> Required field</p>
+
           <div className="field">
-            <label className="label" htmlFor="email">Email address</label>
+            <label className="label" htmlFor="email">Email address <span className="req" aria-hidden="true">*</span></label>
             <input
               id="email"
               className="input"
@@ -63,7 +65,7 @@ export default function LoginPage() {
           </div>
 
           <div className="field">
-            <label className="label" htmlFor="password">Password</label>
+            <label className="label" htmlFor="password">Password <span className="req" aria-hidden="true">*</span></label>
             <div className="input-reveal-wrap">
               <input
                 id="password"

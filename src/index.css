@@ -179,6 +179,17 @@ body {
   color: var(--gray-700);
 }
 
+.req {
+  color: var(--red);
+  font-weight: 700;
+}
+
+.form-legend {
+  font-size: 11px;
+  color: var(--red);
+  margin-top: 6px;
+}
+
 .hint {
   font-size: 11px;
   color: var(--gray-400);
