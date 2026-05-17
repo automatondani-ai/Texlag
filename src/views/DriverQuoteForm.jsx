@@ -584,6 +584,13 @@ function QuoteResultCard({
           </tbody>
         </table>
 
+        {/* Detention notice — shown only when detention is NOT charged */}
+        {!quote.toggles?.detention && (
+          <p className="detention-notice">
+            Detention will be charged if loading/unloading exceeds 2 hours of free time.
+          </p>
+        )}
+
         <div className="internal-row">
           <span className="internal-row__label">Internal Driver Cost (single-driver payable)</span>
           <span className="internal-row__value">{fmt(quote.internalDriverCost)}</span>

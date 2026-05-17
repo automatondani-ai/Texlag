@@ -407,7 +407,7 @@ export function buildDocument(quote, detentionHourlyRate = 75) {
           ? h(View, { style: s.complianceBox },
               h(Text, { style: s.complianceTitle }, 'Detention Policy'),
               h(Text, { style: s.complianceBody },
-                `First 2 hours of waiting time are included at no charge. Detention fees will be charged for any additional waiting time beyond the initial 2 hours, at a rate of $${detentionHourlyRate} per hour.`,
+                'Detention will be charged if loading/unloading exceeds 2 hours of free time.',
               ),
             )
           : null,
