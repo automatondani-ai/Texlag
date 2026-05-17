@@ -14,10 +14,30 @@
  *                        (Resend test address — only delivers to your own account).
  */
 
+import sharp               from 'sharp'
+import { readFileSync }    from 'fs'
+import { fileURLToPath }   from 'url'
+import { dirname, join }   from 'path'
 import { Resend }          from 'resend'
 import { renderToBuffer }  from '@react-pdf/renderer'
 import { verifyToken }     from './_lib/auth.js'
 import { buildDocument, BRAND, fmt } from './_lib/buildQuotePDF.js'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname  = dirname(__filename)
+const LOGO_PATH  = join(__dirname, '../src/assets/texlag-logo.avif')
+
+// ── Logo conversion (cached per cold start) ──────────────────────────────────
+
+let _logoDataUrl = null
+
+async function getLogoDataUrl() {
+  if (_logoDataUrl) return _logoDataUrl
+  const avifBuf   = readFileSync(LOGO_PATH)
+  const pngBuf    = await sharp(avifBuf).png().toBuffer()
+  _logoDataUrl    = `data:image/png;base64,${pngBuf.toString('base64')}`
+  return _logoDataUrl
+}
 
 const REQUIRED = ['quoteId', 'pickup', 'dropoffs', 'lineItems', 'finalQuote']
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -206,11 +226,21 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'RESEND_API_KEY is not configured' })
   }
 
+  // ── Convert logo ────────────────────────────────────────────────────────────
+  let logoDataUrl
+  try {
+    logoDataUrl = await getLogoDataUrl()
+    console.log('[send-quote] logo converted — bytes:', logoDataUrl.length)
+  } catch (e) {
+    console.error('[send-quote] logo conversion failed:', e)
+    logoDataUrl = null   // buildDocument falls back to embedded LOGO_BASE64
+  }
+
   // ── Generate PDF buffer ─────────────────────────────────────────────────────
   let pdfBuffer
   try {
     pdfBuffer = await renderToBuffer(
-      buildDocument(quote, Number(detentionHourlyRate) || 75)
+      buildDocument(quote, Number(detentionHourlyRate) || 75, logoDataUrl)
     )
     console.log('[send-quote] PDF generated — bytes:', pdfBuffer.length)
   } catch (e) {

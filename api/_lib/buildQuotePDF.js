@@ -63,8 +63,11 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   headerLeft: {
-    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
+  },
+  headerRight: {
+    alignItems: 'flex-end',
   },
   headerLogo: {
     width: 52,
@@ -291,7 +294,7 @@ function itemQty(item) {
 
 // ── Document builder ─────────────────────────────────────────────────────────
 
-export function buildDocument(quote, detentionHourlyRate = 75) {
+export function buildDocument(quote, detentionHourlyRate = 75, logoSrc) {
   const detentionOff = !quote.toggles?.detention
   const activeItems  = Object.entries(quote.lineItems ?? {})
     .filter(([k, v]) => v !== null && k !== 'backhaulSurcharge')
@@ -309,18 +312,15 @@ export function buildDocument(quote, detentionHourlyRate = 75) {
       // Header
       h(View, { style: s.header },
         h(View, { style: s.headerLeft },
-          h(Image, { src: LOGO_BASE64, style: s.headerLogo }),
-          h(View, null,
-            h(Text, { style: s.headerBrand }, BRAND.name),
-            h(View, { style: s.headerMeta },
-              h(Text, { style: s.headerMetaText }, BRAND.usdot),
-              h(Text, { style: s.headerMetaText }, BRAND.mc),
-              h(Text, { style: s.headerMetaText }, BRAND.phone),
-            ),
-          ),
+          h(Image, { src: logoSrc ?? LOGO_BASE64, style: s.headerLogo }),
         ),
-        h(View, { style: { alignItems: 'flex-end' } },
-          h(Text, { style: s.headerQuoteWord }, 'QUOTE'),
+        h(View, { style: s.headerRight },
+          h(Text, { style: s.headerBrand }, BRAND.name),
+          h(View, { style: s.headerMeta },
+            h(Text, { style: s.headerMetaText }, BRAND.usdot),
+            h(Text, { style: s.headerMetaText }, BRAND.mc),
+            h(Text, { style: s.headerMetaText }, BRAND.phone),
+          ),
         ),
       ),
 
@@ -396,7 +396,7 @@ export function buildDocument(quote, detentionHourlyRate = 75) {
 
         h(View, { style: s.totalRow },
           h(View, { style: s.totalLabelWrap },
-            h(Text, { style: s.totalLabel }, 'Final Quote'),
+            h(Text, { style: s.totalLabel }, 'Total'),
             quote.backhaulApplied
               ? h(Text, { style: s.totalNote }, 'Low/No Backhaul surcharge applied (fuel ×2)')
               : null,

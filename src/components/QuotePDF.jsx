@@ -1,5 +1,5 @@
 import React from 'react'
-import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer'
+import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer'
 
 // ── Brand constants ──────────────────────────────────────────────────────────
 
@@ -56,7 +56,18 @@ const s = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 0,
   },
-  headerLeft: {},
+  headerLeft: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerLogo: {
+    width: 52,
+    height: 52,
+    objectFit: 'contain',
+  },
+  headerRight: {
+    alignItems: 'flex-end',
+  },
   headerBrand: {
     fontSize: 22,
     fontFamily: 'Helvetica-Bold',
@@ -327,7 +338,7 @@ function itemQty(item) {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export default function QuotePDF({ quote, detentionHourlyRate = 75 }) {
+export default function QuotePDF({ quote, detentionHourlyRate = 75, logoSrc }) {
   const detentionOff = !quote.toggles?.detention
   const activeItems  = Object.entries(quote.lineItems ?? {})
     .filter(([k, v]) => v !== null && k !== 'backhaulSurcharge')
@@ -346,15 +357,15 @@ export default function QuotePDF({ quote, detentionHourlyRate = 75 }) {
         {/* ── Header ───────────────────────────────────────────────────── */}
         <View style={s.header}>
           <View style={s.headerLeft}>
+            {logoSrc && <Image src={logoSrc} style={s.headerLogo} />}
+          </View>
+          <View style={s.headerRight}>
             <Text style={s.headerBrand}>{BRAND.name}</Text>
             <View style={s.headerMeta}>
               <Text style={s.headerMetaText}>{BRAND.usdot}</Text>
               <Text style={s.headerMetaText}>{BRAND.mc}</Text>
               <Text style={s.headerMetaText}>{BRAND.phone}</Text>
             </View>
-          </View>
-          <View style={s.headerRight}>
-            <Text style={s.headerQuoteWord}>QUOTE</Text>
           </View>
         </View>
 
@@ -434,7 +445,7 @@ export default function QuotePDF({ quote, detentionHourlyRate = 75 }) {
           {/* Final quote */}
           <View style={s.totalRow}>
             <View style={s.colDesc}>
-              <Text style={s.totalLabel}>Final Quote</Text>
+              <Text style={s.totalLabel}>Total</Text>
               {quote.backhaulApplied && (
                 <Text style={s.totalNote}>Low/No Backhaul surcharge applied (fuel ×2)</Text>
               )}
