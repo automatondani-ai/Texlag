@@ -199,7 +199,10 @@ export default async function handler(req, res) {
   const resendKey = process.env.RESEND_API_KEY
   const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev'
 
+  console.log('[send-quote] env check — RESEND_API_KEY set:', !!resendKey, '| from:', fromEmail)
+
   if (!resendKey) {
+    console.error('[send-quote] RESEND_API_KEY is not configured')
     return res.status(500).json({ error: 'RESEND_API_KEY is not configured' })
   }
 
@@ -209,6 +212,7 @@ export default async function handler(req, res) {
     pdfBuffer = await renderToBuffer(
       buildDocument(quote, Number(detentionHourlyRate) || 75)
     )
+    console.log('[send-quote] PDF generated — bytes:', pdfBuffer.length)
   } catch (e) {
     console.error('[send-quote] PDF generation failed:', e)
     return res.status(500).json({ error: `PDF generation failed: ${e.message}` })
@@ -219,28 +223,44 @@ export default async function handler(req, res) {
   const subject    = `Freight Quote — TexLag Express — ${quote.quoteId}`
   const filename   = `TexLag-Quote-${quote.quoteId}.pdf`
 
+  console.log('[send-quote] sending — from:', fromEmail, '| to:', brokerEmail.trim(), '| subject:', subject, '| attachment:', filename)
+
   const resend = new Resend(resendKey)
 
-  const { data, error: sendError } = await resend.emails.send({
-    from:    `TexLag Express <${fromEmail}>`,
-    to:      [brokerEmail.trim()],
-    subject,
-    html:    buildEmailHtml(quote, driverName),
-    attachments: [
-      {
-        filename,
-        content: pdfBuffer.toString('base64'),
-      },
-    ],
-  })
-
-  if (sendError) {
-    console.error('[send-quote] Resend error:', sendError)
+  let data, sendError
+  try {
+    // Pass the raw Buffer — Resend v4 handles base64 encoding internally.
+    // Providing content_type ensures email clients recognise the attachment as PDF.
+    ;({ data, error: sendError } = await resend.emails.send({
+      from:    `TexLag Express <${fromEmail}>`,
+      to:      [brokerEmail.trim()],
+      subject,
+      html:    buildEmailHtml(quote, driverName),
+      attachments: [
+        {
+          filename,
+          content:      pdfBuffer,
+          content_type: 'application/pdf',
+        },
+      ],
+    }))
+  } catch (e) {
+    console.error('[send-quote] Resend SDK threw unexpectedly:', e)
     return res.status(502).json({
       error:   'Email delivery failed',
-      details: sendError.message ?? sendError,
+      details: e.message,
     })
   }
+
+  if (sendError) {
+    console.error('[send-quote] Resend API error:', JSON.stringify(sendError))
+    return res.status(502).json({
+      error:   'Email delivery failed',
+      details: sendError.message ?? JSON.stringify(sendError),
+    })
+  }
+
+  console.log('[send-quote] email sent — messageId:', data?.id)
 
   return res.status(200).json({
     success:   true,
