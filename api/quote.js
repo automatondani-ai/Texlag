@@ -1,6 +1,5 @@
 import redis from './_lib/redis.js'
 import { verifyToken } from './_lib/auth.js'
-import { randomUUID } from 'crypto'
 
 const DISTANCE_MATRIX_URL = 'https://maps.googleapis.com/maps/api/distancematrix/json'
 
@@ -186,8 +185,23 @@ export default async function handler(req, res) {
     (numDeadhead * internalCpm)
   )
 
+  // ── Generate quote ID: YYYYMMDD-NNN ────────────────────────────────────────
+  //
+  // Atomically increments a per-day counter in Redis.  Counter key includes the
+  // date, so it resets automatically each new day with no cron or cleanup needed.
+  // incr() returns 1 on the first call for a new key, giving 001 as the first
+  // ID each day.  We only reach here after validation + route fetch both passed,
+  // so a Maps failure never burns a sequence number.
+  let quoteId
+  try {
+    const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')  // YYYYMMDD
+    const seq  = await redis.incr(`quote_counter:${date}`)
+    quoteId    = `${date}-${String(seq).padStart(3, '0')}`
+  } catch {
+    return res.status(502).json({ error: 'Failed to generate quote ID' })
+  }
+
   // ── Build response ──────────────────────────────────────────────────────────
-  const quoteId = `Q-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`
   const pl = pickup.trim()
   const dl = dropoffs.map(d => d.trim())
 
