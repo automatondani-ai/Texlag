@@ -23,7 +23,7 @@ export function signToken(payload) {
  */
 export function verifyToken(req) {
   const header = req.headers['authorization'] ?? ''
-  const token  = header.startsWith('Bearer ') ? header.slice(7) : header.trim()
+  const token  = (header.startsWith('Bearer ') ? header.slice(7) : header).trim()
 
   if (!token) {
     throw Object.assign(new Error('Authorization token is required'), { status: 401 })

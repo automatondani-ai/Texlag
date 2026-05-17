@@ -201,11 +201,14 @@ export default function DriverQuoteForm() {
     if (!pickup.trim())                  return setError('Enter a pickup location.')
     if (dropoffs.some(d => !d.trim()))   return setError('Fill in all drop-off locations.')
 
+    const token = getToken()
+    if (!token) return setError('Session expired — please log in again.')
+
     setQuoting(true)
     try {
       const res  = await fetch('/api/quote', {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body:    JSON.stringify({
           jurisdiction,
           pickup:          pickup.trim(),
