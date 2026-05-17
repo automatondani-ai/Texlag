@@ -389,18 +389,8 @@ export function buildDocument(quote, detentionHourlyRate = 75, logoSrc) {
           )
         ),
 
-        h(View, { style: s.subtotalRow },
-          h(Text, { style: s.subtotalLabel }, 'Core Subtotal'),
-          h(Text, { style: s.subtotalValue }, fmt(quote.coreSubtotal)),
-        ),
-
         h(View, { style: s.totalRow },
-          h(View, { style: s.totalLabelWrap },
-            h(Text, { style: s.totalLabel }, 'Total'),
-            quote.backhaulApplied
-              ? h(Text, { style: s.totalNote }, 'Low/No Backhaul surcharge applied (fuel ×2)')
-              : null,
-          ),
+          h(Text, { style: s.totalLabel }, 'Total'),
           h(Text, { style: s.totalValue }, fmt(quote.finalQuote)),
         ),
 

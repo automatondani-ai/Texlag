@@ -436,20 +436,9 @@ export default function QuotePDF({ quote, detentionHourlyRate = 75, logoSrc }) {
             </View>
           ))}
 
-          {/* Core subtotal */}
-          <View style={s.subtotalRow}>
-            <Text style={s.subtotalLabel}>Core Subtotal</Text>
-            <Text style={s.subtotalValue}>{fmt(quote.coreSubtotal)}</Text>
-          </View>
-
-          {/* Final quote */}
+          {/* Total */}
           <View style={s.totalRow}>
-            <View style={s.colDesc}>
-              <Text style={s.totalLabel}>Total</Text>
-              {quote.backhaulApplied && (
-                <Text style={s.totalNote}>Low/No Backhaul surcharge applied (fuel ×2)</Text>
-              )}
-            </View>
+            <Text style={s.totalLabel}>Total</Text>
             <Text style={s.totalValue}>{fmt(quote.finalQuote)}</Text>
           </View>
 
