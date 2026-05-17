@@ -1392,6 +1392,78 @@ body {
   font-weight: 500;
 }
 
+/* ── AUDIT TRAIL ─────────────────────────────────────────────────────────── */
+
+.audit-table .audit-ts {
+  font-size: 12px;
+  font-family: 'Courier New', Courier, monospace;
+  color: var(--gray-500);
+  white-space: nowrap;
+}
+
+.audit-table .audit-by {
+  font-size: 12.5px;
+  color: var(--gray-600);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audit-table .audit-desc {
+  font-size: 12.5px;
+  color: var(--gray-700);
+  max-width: 340px;
+}
+
+/* ── AUDIT ACTION BADGES ─────────────────────────────────────────────────── */
+
+.audit-badge {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.audit-badge--blue {
+  background: var(--blue-light);
+  color: var(--blue-dark);
+  border: 1px solid #bdd8ee;
+}
+
+.audit-badge--green {
+  background: var(--green-light);
+  color: var(--green);
+  border: 1px solid #86efac;
+}
+
+.audit-badge--red {
+  background: var(--red-light);
+  color: var(--red);
+  border: 1px solid #fca5a5;
+}
+
+.audit-badge--amber {
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+
+.audit-badge--teal {
+  background: var(--teal-light);
+  color: var(--teal-dark);
+  border: 1px solid #99f6e4;
+}
+
+.audit-badge--gray {
+  background: var(--gray-100);
+  color: var(--gray-600);
+  border: 1px solid var(--gray-200);
+}
+
 .deadhead-location-row .form-input {
   flex: 1;
 }

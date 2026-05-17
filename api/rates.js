@@ -1,5 +1,6 @@
 import redis from './_lib/redis.js'
 import { requireAdmin } from './_lib/auth.js'
+import { logAudit, AUDIT } from './_lib/audit.js'
 
 // ── Rate catalogue ──────────────────────────────────────────────────────────
 //
@@ -88,7 +89,15 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: 'Database error' })
     }
 
-    const updated = await getCurrentRates()
+    const updated   = await getCurrentRates()
+    const changedKeys = Object.keys(body).join(', ')
+
+    logAudit({
+      action:      AUDIT.RATES_UPDATED,
+      performedBy: admin.email,
+      description: `Pricing rates updated: ${changedKeys}`,
+    })
+
     return res.status(200).json({ rates: updated })
   }
 

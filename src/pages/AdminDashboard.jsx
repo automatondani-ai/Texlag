@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import PricingView from '../views/PricingView'
 import DriversView from '../views/DriversView'
+import AuditView   from '../views/AuditView'
 import logoUrl     from '../assets/texlag-logo.avif'
 
 const SIDEBAR = [
   { key: 'pricing', label: 'Pricing Variables' },
   { key: 'drivers', label: 'Driver Management' },
+  { key: 'audit',   label: 'Audit Trail' },
 ]
 
 export default function AdminDashboard() {
@@ -55,7 +57,9 @@ export default function AdminDashboard() {
 
         {/* Main content */}
         <main className="dashboard__content">
-          {section === 'pricing' ? <PricingView /> : <DriversView />}
+          {section === 'pricing' && <PricingView />}
+          {section === 'drivers' && <DriversView />}
+          {section === 'audit'   && <AuditView />}
         </main>
 
       </div>

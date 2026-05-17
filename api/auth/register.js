@@ -2,6 +2,7 @@ import bcrypt  from 'bcryptjs'
 import jwt     from 'jsonwebtoken'
 import { Resend } from 'resend'
 import redis   from '../_lib/redis.js'
+import { logAudit, AUDIT } from '../_lib/audit.js'
 
 const DEFAULT_PASSWORD = 'Password@123'
 const VALID_ROLES = ['admin', 'driver']
@@ -236,6 +237,13 @@ export default async function handler(req, res) {
   } catch {
     return res.status(502).json({ error: 'Database error' })
   }
+
+  // ── Audit log ───────────────────────────────────────────────────────────────
+  logAudit({
+    action:      AUDIT.DRIVER_CREATED,
+    performedBy: admin.email,
+    description: `Driver account created for ${firstName.trim()} ${lastName.trim()} (${normalizedEmail})`,
+  })
 
   // ── Send welcome email (non-blocking for drivers) ────────────────────────────
   if (role === 'driver') {

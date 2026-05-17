@@ -10,6 +10,7 @@
 
 import redis from '../../_lib/redis.js'
 import { requireAdmin } from '../../_lib/auth.js'
+import { logAudit, AUDIT } from '../../_lib/audit.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -52,6 +53,12 @@ export default async function handler(req, res) {
   }
 
   console.log(`[toggle-status] ${normalizedEmail} → active: ${newActive}`)
+
+  logAudit({
+    action:      newActive ? AUDIT.DRIVER_ACTIVATED : AUDIT.DRIVER_DEACTIVATED,
+    performedBy: admin.email,
+    description: `Driver ${normalizedEmail} ${newActive ? 'activated' : 'deactivated'}`,
+  })
 
   const { passwordHash: _, ...safeUser } = updated
   return res.status(200).json({ user: { ...safeUser, active: newActive } })

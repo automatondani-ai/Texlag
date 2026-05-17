@@ -1,5 +1,6 @@
 import redis from './_lib/redis.js'
 import { verifyToken } from './_lib/auth.js'
+import { logAudit, AUDIT } from './_lib/audit.js'
 
 const DISTANCE_MATRIX_URL = 'https://maps.googleapis.com/maps/api/distancematrix/json'
 
@@ -217,6 +218,12 @@ export default async function handler(req, res) {
     totalMiles:  r2(totalMiles),
     finalQuote,
   }
+  logAudit({
+    action:      AUDIT.QUOTE_GENERATED,
+    performedBy: caller.email,
+    description: `Quote ${quoteId} generated — ${pl} → ${dl[dl.length - 1]} — Total: $${finalQuote.toFixed(2)}`,
+  })
+
   Promise.all([
     redis.set(`quote:${quoteId}`, snapshot),
     redis.lpush(`quotes:driver:${caller.email}`, quoteId),

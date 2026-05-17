@@ -11,6 +11,7 @@
 import bcrypt from 'bcryptjs'
 import redis  from '../_lib/redis.js'
 import { verifyToken } from '../_lib/auth.js'
+import { logAudit, AUDIT } from '../_lib/audit.js'
 
 const RULES = [
   { id: 'len',     test: p => p.length >= 8,           msg: 'at least 8 characters'          },
@@ -76,5 +77,12 @@ export default async function handler(req, res) {
   }
 
   console.log('[change-password] password updated for:', caller.email)
+
+  logAudit({
+    action:      AUDIT.PASSWORD_CHANGED,
+    performedBy: caller.email,
+    description: `Password changed for ${caller.email}`,
+  })
+
   return res.status(200).json({ success: true })
 }

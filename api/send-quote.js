@@ -22,6 +22,7 @@ import { Resend }          from 'resend'
 import { renderToBuffer }  from '@react-pdf/renderer'
 import { verifyToken }     from './_lib/auth.js'
 import { buildDocument, BRAND, fmt } from './_lib/buildQuotePDF.js'
+import { logAudit, AUDIT } from './_lib/audit.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname  = dirname(__filename)
@@ -291,6 +292,12 @@ export default async function handler(req, res) {
   }
 
   console.log('[send-quote] email sent — messageId:', data?.id)
+
+  logAudit({
+    action:      AUDIT.QUOTE_EMAILED,
+    performedBy: caller.email,
+    description: `Quote ${quote.quoteId} emailed to broker ${brokerEmail.trim()}`,
+  })
 
   return res.status(200).json({
     success:   true,
