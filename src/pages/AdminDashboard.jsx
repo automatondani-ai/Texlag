@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import QuoteView   from '../views/QuoteView'
 import PricingView from '../views/PricingView'
 import DriversView from '../views/DriversView'
 import logoUrl     from '../assets/texlag-logo.avif'
@@ -12,8 +11,7 @@ const SIDEBAR = [
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth()
-  const [topView,     setTopView]     = useState('quote')   // 'quote' | 'admin'
-  const [adminSection, setAdminSection] = useState('pricing')
+  const [section, setSection] = useState('pricing')
 
   return (
     <>
@@ -28,21 +26,6 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <div className="nav__links">
-            <button
-              className={`nav__link${topView === 'quote' ? ' nav__link--active' : ''}`}
-              onClick={() => setTopView('quote')}
-            >
-              Quote
-            </button>
-            <button
-              className={`nav__link${topView === 'admin' ? ' nav__link--active' : ''}`}
-              onClick={() => setTopView('admin')}
-            >
-              Admin
-            </button>
-          </div>
-
           <div className="nav__user">
             <span className="nav__user-name">{user.firstName} {user.lastName}</span>
             <span className="role-badge role-badge--admin">Admin</span>
@@ -52,34 +35,30 @@ export default function AdminDashboard() {
       </nav>
 
       {/* ── Body ────────────────────────────────────────────────────────────── */}
-      {topView === 'quote' ? (
-        <QuoteView />
-      ) : (
-        <div className="dashboard">
+      <div className="dashboard">
 
-          {/* Side nav */}
-          <aside className="dashboard__sidebar">
-            <p className="sidebar__section-label">Admin</p>
-            <nav className="sidebar-nav">
-              {SIDEBAR.map(({ key, label }) => (
-                <button
-                  key={key}
-                  className={`sidebar-nav__item${adminSection === key ? ' sidebar-nav__item--active' : ''}`}
-                  onClick={() => setAdminSection(key)}
-                >
-                  {label}
-                </button>
-              ))}
-            </nav>
-          </aside>
+        {/* Side nav */}
+        <aside className="dashboard__sidebar">
+          <p className="sidebar__section-label">Admin</p>
+          <nav className="sidebar-nav">
+            {SIDEBAR.map(({ key, label }) => (
+              <button
+                key={key}
+                className={`sidebar-nav__item${section === key ? ' sidebar-nav__item--active' : ''}`}
+                onClick={() => setSection(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+        </aside>
 
-          {/* Main content */}
-          <main className="dashboard__content">
-            {adminSection === 'pricing' ? <PricingView /> : <DriversView />}
-          </main>
+        {/* Main content */}
+        <main className="dashboard__content">
+          {section === 'pricing' ? <PricingView /> : <DriversView />}
+        </main>
 
-        </div>
-      )}
+      </div>
     </>
   )
 }
