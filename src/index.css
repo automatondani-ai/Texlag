@@ -736,6 +736,33 @@ body {
   gap: 16px;
 }
 
+.input-reveal-wrap {
+  position: relative;
+}
+
+.input-reveal-wrap .input {
+  padding-right: 42px;
+}
+
+.input-reveal-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  color: var(--gray-400);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+
+.input-reveal-btn:hover { color: var(--gray-600); }
+
 .login-submit {
   margin-top: 4px;
 }
