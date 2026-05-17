@@ -11,7 +11,10 @@ export default function DriverPortal() {
         <div className="nav__inner">
           <div className="nav__brand">
             <img src={logoUrl} alt="TexLag Express" className="nav__logo" />
-            <span>TexLag Express</span>
+            <div className="nav__brand-info">
+              <span className="nav__brand-name">TexLag Express</span>
+              <span className="nav__brand-creds">USDOT: 3609656 | MC-1229052 | +1(832)-944-5199</span>
+            </div>
           </div>
 
           <div className="nav__user">

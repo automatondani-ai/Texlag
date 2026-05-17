@@ -39,6 +39,7 @@ export default function LoginPage() {
           <div className="login-brand__text">
             <div className="login-brand__name">TexLag Express</div>
             <div className="login-brand__sub">Freight Brokerage Portal</div>
+            <div className="login-brand__creds">USDOT: 3609656 | MC-1229052 | +1(832)-944-5199</div>
           </div>
         </div>
 
