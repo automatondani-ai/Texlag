@@ -38,7 +38,7 @@ export default function LoginPage() {
           <img src={logoUrl} alt="TexLag Express" className="login-brand__logo" />
           <div className="login-brand__text">
             <div className="login-brand__name">TexLag Express</div>
-            <div className="login-brand__sub">Freight Brokerage Portal</div>
+            <div className="login-brand__sub">America's Leading Transportation Company.</div>
             <div className="login-brand__creds">USDOT: 3609656 | MC-1229052 | +1(832)-944-5199</div>
           </div>
         </div>
