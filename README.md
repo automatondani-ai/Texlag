@@ -63,7 +63,7 @@ Fill in `.env.local`:
 | `UPSTASH_REDIS_REST_TOKEN` | Yes | Upstash Redis REST write token |
 | `JWT_SECRET` | Yes | 64-character hex string used to sign and verify all JWTs. Generate with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
 | `RESEND_API_KEY` | For email | API key from [resend.com](https://resend.com) |
-| `RESEND_FROM_EMAIL` | For email | Verified sender address on your Resend domain (e.g. `quotes@yourdomain.com`) |
+| `RESEND_FROM_EMAIL` | Yes | Verified sender address on your Resend domain (e.g. `quotes@yourdomain.com`). Falls back to `onboarding@resend.dev` when unset — Resend's test address, delivers to your own account only. |
 
 > Email (`RESEND_API_KEY` / `RESEND_FROM_EMAIL`) is only required for the **Send to Broker** feature. All other functionality works without it.
 
@@ -100,7 +100,7 @@ vercel dev         # Frontend + API routes with env vars loaded
 | `UPSTASH_REDIS_REST_TOKEN` | REST token from Upstash |
 | `JWT_SECRET` | A random 64-char hex string (`openssl rand -hex 32`) |
 | `RESEND_API_KEY` | Your Resend API key |
-| `RESEND_FROM_EMAIL` | Verified sender address |
+| `RESEND_FROM_EMAIL` | Verified sender address on your Resend domain. Falls back to `onboarding@resend.dev` when unset. |
 
 ### 3. Deploy
 

@@ -10,6 +10,8 @@
  * Required env vars:
  *   RESEND_API_KEY     — Resend secret key
  *   RESEND_FROM_EMAIL  — Verified sender address, e.g. quotes@yourdomain.com
+ *                        Falls back to onboarding@resend.dev when not set
+ *                        (Resend test address — only delivers to your own account).
  */
 
 import { Resend }          from 'resend'
@@ -194,14 +196,11 @@ export default async function handler(req, res) {
   }
 
   // ── Env vars ────────────────────────────────────────────────────────────────
-  const resendKey  = process.env.RESEND_API_KEY
-  const fromEmail  = process.env.RESEND_FROM_EMAIL
+  const resendKey = process.env.RESEND_API_KEY
+  const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev'
 
   if (!resendKey) {
     return res.status(500).json({ error: 'RESEND_API_KEY is not configured' })
-  }
-  if (!fromEmail) {
-    return res.status(500).json({ error: 'RESEND_FROM_EMAIL is not configured' })
   }
 
   // ── Generate PDF buffer ─────────────────────────────────────────────────────
