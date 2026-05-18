@@ -286,6 +286,11 @@ const s = StyleSheet.create({
 
 export const fmt = n => `$${Number(n ?? 0).toFixed(2)}`
 
+/** Strip parenthetical rate details — brokers see label name only. */
+function pdfLabel(label) {
+  return (label ?? '').replace(/\s*\(.*/, '').trim()
+}
+
 function itemQty(item) {
   if (item.days  != null) return `${item.days} day${item.days !== 1 ? 's' : ''}`
   if (item.miles != null) return `${item.miles} mi`
@@ -388,15 +393,16 @@ export function buildDocument(quote, detentionHourlyRate = 75, logoSrc) {
 
         ...activeItems.map(([key, item], i) =>
           h(View, { key, style: [s.tableRow, i % 2 === 1 ? s.tableRowAlt : {}] },
-            h(Text, { style: [s.tdLabel, s.colDesc] }, item.label),
+            h(Text, { style: [s.tdLabel, s.colDesc] }, pdfLabel(item.label)),
             h(Text, { style: [s.tdMuted,  s.colQty] }, itemQty(item)),
             h(Text, { style: [s.tdAmount, s.colAmt] }, fmt(item.amount)),
           )
         ),
 
-        h(View, { style: s.totalRow },
-          h(Text, { style: s.totalLabel }, 'Total'),
-          h(Text, { style: s.totalValue }, fmt(quote.finalQuote)),
+        h(View, { style: { ...s.totalRow, paddingHorizontal: 10 } },
+          h(Text, { style: [s.totalLabel, s.colDesc] }, 'Total'),
+          h(Text, { style: s.colQty }, ''),
+          h(Text, { style: [s.totalValue, s.colAmt] }, fmt(quote.finalQuote)),
         ),
 
         h(View, { style: s.complianceBox },
