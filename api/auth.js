@@ -2,9 +2,11 @@
  * POST /api/auth
  *
  * Routes by the `action` field in the request body:
- *   action: 'login'           — authenticate and return JWT
- *   action: 'register'        — create a new user account (admin only)
- *   action: 'change-password' — update password for the authenticated caller
+ *   action: 'login'            — authenticate and return JWT
+ *   action: 'register'         — create a new user account (admin only)
+ *   action: 'change-password'  — update password for the authenticated caller
+ *   action: 'forgot-password'  — generate + email a 6-digit reset code (15 min TTL)
+ *   action: 'reset-password'   — validate code and set new password
  */
 
 import bcrypt      from 'bcryptjs'
@@ -366,6 +368,224 @@ async function handleChangePassword(req, res) {
   return res.status(200).json({ success: true })
 }
 
+// ── action: 'forgot-password' ─────────────────────────────────────────────────
+
+function buildResetEmail(firstName, email, code) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Password Reset — TexLag Express</title>
+</head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1f5f9;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="520" cellpadding="0" cellspacing="0" border="0"
+               style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.09);">
+          <tr>
+            <td style="background:#1e293b;padding:24px 36px 20px;">
+              <div style="font-size:20px;font-weight:700;color:#ffffff;letter-spacing:0.3px;margin-bottom:4px;">
+                TexLag Express
+              </div>
+              <div style="font-size:11px;color:#94a3b8;">
+                USDOT Number: 3609656 &nbsp;·&nbsp; MC-1229052 &nbsp;·&nbsp; +1(832)-944-5199
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px 36px 24px;">
+              <p style="font-size:18px;font-weight:700;color:#1e293b;margin:0 0 6px 0;">
+                Password Reset Code
+              </p>
+              <p style="font-size:13px;color:#64748b;margin:0 0 22px 0;">
+                Hi ${firstName}, we received a request to reset your password.
+              </p>
+              <p style="font-size:14px;color:#334155;line-height:1.7;margin:0 0 22px 0;">
+                Use the 6-digit code below to reset your password. This code expires in
+                <strong>15 minutes</strong>.
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                     style="background:#f8fafc;border:2px dashed #cbd5e1;border-radius:8px;margin-bottom:22px;">
+                <tr>
+                  <td style="padding:20px;text-align:center;">
+                    <div style="font-size:36px;font-weight:700;color:#0f172a;letter-spacing:10px;font-family:monospace;">
+                      ${code}
+                    </div>
+                  </td>
+                </tr>
+              </table>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                     style="background:#fffbeb;border-left:3px solid #f59e0b;border-radius:2px;margin-bottom:22px;">
+                <tr>
+                  <td style="padding:10px 14px;">
+                    <p style="font-size:12.5px;color:#78350f;margin:0;line-height:1.6;">
+                      If you did not request a password reset, you can safely ignore this email.
+                      Your password will not change.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:14px;color:#334155;line-height:1.7;margin:0;">
+                Regards,<br>
+                <strong style="color:#1e293b;">TexLag Express Admin</strong>
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#f8fafc;padding:14px 36px;border-top:1px solid #e2e8f0;">
+              <p style="font-size:11px;color:#94a3b8;margin:0;line-height:1.8;text-align:center;">
+                TexLag Express &nbsp;·&nbsp; USDOT Number: 3609656 &nbsp;·&nbsp; MC-1229052<br>
+                Phone: +1(832)-944-5199
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
+async function handleForgotPassword(req, res) {
+  const { email } = req.body ?? {}
+
+  if (!email || !EMAIL_RE.test(String(email).trim())) {
+    return res.status(400).json({ error: 'A valid `email` is required' })
+  }
+
+  const normalizedEmail = String(email).toLowerCase().trim()
+
+  // Look up the user — we need their first name for the email
+  let user
+  try {
+    user = await redis.get(`users:${normalizedEmail}`)
+  } catch {
+    return res.status(502).json({ error: 'Database error' })
+  }
+
+  // Always return 200 even when user not found — prevents email enumeration
+  if (!user) {
+    return res.status(200).json({ success: true })
+  }
+
+  // Generate a secure 6-digit code
+  const code = String(Math.floor(100000 + Math.random() * 900000))
+
+  // Store with 15-minute TTL (900 seconds)
+  try {
+    await redis.set(`password_reset:${normalizedEmail}`, code, { ex: 900 })
+  } catch {
+    return res.status(502).json({ error: 'Database error' })
+  }
+
+  // Send email via Resend (non-blocking — do not let email failure block the response)
+  const resendKey = process.env.RESEND_API_KEY
+  if (resendKey) {
+    const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev'
+    const resend    = new Resend(resendKey)
+    resend.emails.send({
+      from:    `TexLag Express <${fromEmail}>`,
+      to:      [normalizedEmail],
+      subject: 'Your TexLag Express Password Reset Code',
+      html:    buildResetEmail(user.firstName ?? 'Driver', normalizedEmail, code),
+    }).then(({ data, error }) => {
+      if (error) console.error('[auth/forgot-password] Resend error:', JSON.stringify(error))
+      else       console.log('[auth/forgot-password] Reset email sent — messageId:', data?.id)
+    }).catch(e => console.error('[auth/forgot-password] Resend threw:', e.message))
+  } else {
+    console.warn('[auth/forgot-password] RESEND_API_KEY not set — skipping reset email')
+  }
+
+  logAudit({
+    action:      AUDIT.PASSWORD_RESET_REQUESTED,
+    performedBy: normalizedEmail,
+    description: `Password reset requested for ${normalizedEmail}`,
+  })
+
+  return res.status(200).json({ success: true })
+}
+
+// ── action: 'reset-password' ──────────────────────────────────────────────────
+
+async function handleResetPassword(req, res) {
+  const { email, code, newPassword } = req.body ?? {}
+
+  if (!email || !EMAIL_RE.test(String(email).trim())) {
+    return res.status(400).json({ error: 'A valid `email` is required' })
+  }
+  if (!code || typeof code !== 'string' || !code.trim()) {
+    return res.status(400).json({ error: '`code` is required' })
+  }
+  if (!newPassword || typeof newPassword !== 'string') {
+    return res.status(400).json({ error: '`newPassword` is required' })
+  }
+
+  // Validate password complexity
+  const failed = PW_RULES.filter(r => !r.test(newPassword))
+  if (failed.length) {
+    return res.status(400).json({
+      error:  'Password does not meet complexity requirements',
+      failed: failed.map(r => r.msg),
+    })
+  }
+
+  const normalizedEmail = String(email).toLowerCase().trim()
+
+  // Fetch stored code and user in parallel
+  let storedCode, user
+  try {
+    ;[storedCode, user] = await Promise.all([
+      redis.get(`password_reset:${normalizedEmail}`),
+      redis.get(`users:${normalizedEmail}`),
+    ])
+  } catch {
+    return res.status(502).json({ error: 'Database error' })
+  }
+
+  // Validate code (key expired → storedCode is null)
+  if (!storedCode) {
+    return res.status(400).json({ error: 'Reset code has expired or is invalid. Request a new one.' })
+  }
+  if (String(code).trim() !== String(storedCode)) {
+    return res.status(400).json({ error: 'Incorrect reset code.' })
+  }
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' })
+  }
+
+  // Hash and save
+  const passwordHash = await bcrypt.hash(newPassword, 12)
+
+  const updated = {
+    ...user,
+    passwordHash,
+    mustChangePassword: false,
+    passwordChangedAt:  new Date().toISOString(),
+  }
+
+  try {
+    await Promise.all([
+      redis.set(`users:${normalizedEmail}`, updated),
+      redis.del(`password_reset:${normalizedEmail}`),
+    ])
+  } catch {
+    return res.status(502).json({ error: 'Database error' })
+  }
+
+  console.log('[auth/reset-password] password reset for:', normalizedEmail)
+
+  logAudit({
+    action:      AUDIT.PASSWORD_RESET_COMPLETED,
+    performedBy: normalizedEmail,
+    description: `Password successfully reset for ${normalizedEmail}`,
+  })
+
+  return res.status(200).json({ success: true })
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
@@ -376,13 +596,15 @@ export default async function handler(req, res) {
   const { action } = req.body ?? {}
 
   switch (action) {
-    case 'login':           return handleLogin(req, res)
-    case 'register':        return handleRegister(req, res)
-    case 'change-password': return handleChangePassword(req, res)
+    case 'login':            return handleLogin(req, res)
+    case 'register':         return handleRegister(req, res)
+    case 'change-password':  return handleChangePassword(req, res)
+    case 'forgot-password':  return handleForgotPassword(req, res)
+    case 'reset-password':   return handleResetPassword(req, res)
     default:
       return res.status(400).json({
-        error:   '`action` must be one of: login, register, change-password',
-        allowed: ['login', 'register', 'change-password'],
+        error:   '`action` must be one of: login, register, change-password, forgot-password, reset-password',
+        allowed: ['login', 'register', 'change-password', 'forgot-password', 'reset-password'],
       })
   }
 }

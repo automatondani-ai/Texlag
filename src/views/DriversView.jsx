@@ -35,15 +35,17 @@ function SummaryCards({ stats }) {
 // ── Driver Profile Panel ──────────────────────────────────────────────────────
 
 function DriverProfile({ driver: initialDriver, onBack, getToken }) {
-  const [driver,     setDriver]     = useState(initialDriver)
-  const [quotes,     setQuotes]     = useState([])
-  const [total,      setTotal]      = useState(0)
-  const [page,       setPage]       = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [loadingQ,   setLoadingQ]   = useState(true)
-  const [errorQ,     setErrorQ]     = useState('')
-  const [toggling,   setToggling]   = useState(false)
-  const [toggleMsg,  setToggleMsg]  = useState('')
+  const [driver,      setDriver]      = useState(initialDriver)
+  const [quotes,      setQuotes]      = useState([])
+  const [total,       setTotal]       = useState(0)
+  const [page,        setPage]        = useState(1)
+  const [totalPages,  setTotalPages]  = useState(1)
+  const [loadingQ,    setLoadingQ]    = useState(true)
+  const [errorQ,      setErrorQ]      = useState('')
+  const [toggling,    setToggling]    = useState(false)
+  const [toggleMsg,   setToggleMsg]   = useState('')
+  const [resetting,   setResetting]   = useState(false)
+  const [resetToast,  setResetToast]  = useState('')
 
   const fetchQuotes = useCallback(async (p) => {
     setLoadingQ(true)
@@ -87,6 +89,26 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
     }
   }
 
+  async function handleSendReset() {
+    setResetting(true)
+    setResetToast('')
+    try {
+      const res  = await fetch('/api/auth', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body:    JSON.stringify({ action: 'forgot-password', email: driver.email }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
+      setResetToast(`Password reset email sent to ${driver.email}.`)
+    } catch (e) {
+      setResetToast(`Error: ${e.message}`)
+    } finally {
+      setResetting(false)
+      setTimeout(() => setResetToast(''), 5000)
+    }
+  }
+
   const isActive = driver.active !== false
 
   return (
@@ -107,6 +129,14 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
         </div>
         <div className="profile-header__actions">
           <button
+            className="btn btn--sm btn--outline"
+            onClick={handleSendReset}
+            disabled={resetting}
+            title="Send a password reset code to this driver"
+          >
+            {resetting ? <><span className="spinner" style={{ borderTopColor: 'currentColor', borderColor: 'rgba(0,0,0,.15)' }} />Sending…</> : 'Send Password Reset'}
+          </button>
+          <button
             className={`btn btn--sm ${isActive ? 'btn--danger-outline' : 'btn--outline'}`}
             onClick={handleToggle}
             disabled={toggling}
@@ -119,6 +149,12 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
       {toggleMsg && (
         <div className={`banner ${toggleMsg.includes('activated') && !toggleMsg.includes('De') ? 'banner--success' : toggleMsg.includes('Deactivated') ? 'banner--warning' : 'banner--error'}`} style={{ marginBottom: 16 }}>
           {toggleMsg}
+        </div>
+      )}
+
+      {resetToast && (
+        <div className={`banner ${resetToast.startsWith('Error') ? 'banner--error' : 'banner--success'}`} style={{ marginBottom: 16 }}>
+          {resetToast}
         </div>
       )}
 
@@ -231,7 +267,9 @@ export default function DriversView() {
   const [formSuccess,   setFormSuccess]   = useState('')
 
   const [selectedDriver, setSelectedDriver] = useState(null)
-  const [toggling,       setToggling]       = useState(null)  // email currently toggling
+  const [toggling,       setToggling]       = useState(null)   // email currently toggling
+  const [resettingRow,   setResettingRow]   = useState(null)   // email currently sending reset
+  const [rowResetMsg,    setRowResetMsg]    = useState({})     // { email: message }
 
   // ── Load drivers ────────────────────────────────────────────────────────────
   const loadDrivers = useCallback(async () => {
@@ -270,6 +308,27 @@ export default function DriversView() {
       alert(e.message)
     } finally {
       setToggling(null)
+    }
+  }
+
+  // ── Send password reset email ───────────────────────────────────────────────
+  async function sendResetForRow(email) {
+    setResettingRow(email)
+    setRowResetMsg(m => ({ ...m, [email]: '' }))
+    try {
+      const res  = await fetch('/api/auth', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body:    JSON.stringify({ action: 'forgot-password', email }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
+      setRowResetMsg(m => ({ ...m, [email]: `Reset email sent to ${email}.` }))
+    } catch (e) {
+      setRowResetMsg(m => ({ ...m, [email]: `Error: ${e.message}` }))
+    } finally {
+      setResettingRow(null)
+      setTimeout(() => setRowResetMsg(m => ({ ...m, [email]: '' })), 5000)
     }
   }
 
@@ -433,7 +492,15 @@ export default function DriversView() {
                       </span>
                     </td>
                     <td>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <button
+                          className="btn btn--sm btn--outline"
+                          onClick={() => sendResetForRow(d.email)}
+                          disabled={resettingRow === d.email}
+                          title="Send a password reset code to this driver"
+                        >
+                          {resettingRow === d.email ? '…' : 'Reset Password'}
+                        </button>
                         <button
                           className={`btn btn--sm ${isActive ? 'btn--danger-outline' : 'btn--outline'}`}
                           onClick={() => toggleStatus(d.email)}
@@ -451,6 +518,11 @@ export default function DriversView() {
                           View Profile
                         </button>
                       </div>
+                      {rowResetMsg[d.email] && (
+                        <div className={`row-toast ${rowResetMsg[d.email].startsWith('Error') ? 'row-toast--error' : 'row-toast--ok'}`}>
+                          {rowResetMsg[d.email]}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 )

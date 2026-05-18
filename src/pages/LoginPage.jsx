@@ -1,14 +1,17 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import logoUrl from '../assets/texlag-logo.avif'
+import ForgotPasswordPage from './ForgotPasswordPage'
 
 export default function LoginPage() {
   const { login } = useAuth()
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
-  const [loading,     setLoading]     = useState(false)
-  const [error,       setError]       = useState('')
-  const [showPassword, setShowPassword] = useState(false)
+  const [loading,       setLoading]       = useState(false)
+  const [error,         setError]         = useState('')
+  const [showPassword,  setShowPassword]  = useState(false)
+  const [showForgot,    setShowForgot]    = useState(false)
+  const [resetSuccess,  setResetSuccess]  = useState('')
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -30,6 +33,15 @@ export default function LoginPage() {
     }
   }
 
+  if (showForgot) {
+    return (
+      <ForgotPasswordPage
+        onBack={() => { setShowForgot(false); setResetSuccess('') }}
+        onSuccess={msg => { setShowForgot(false); setResetSuccess(msg) }}
+      />
+    )
+  }
+
   return (
     <div className="login-page">
       <div className="login-card">
@@ -44,6 +56,7 @@ export default function LoginPage() {
           </div>
         </div>
 
+        {resetSuccess && <div className="banner banner--success">{resetSuccess}</div>}
         {error && <div className="banner banner--error">{error}</div>}
 
         <form className="login-form" onSubmit={handleSubmit} noValidate>
@@ -99,6 +112,16 @@ export default function LoginPage() {
                 )}
               </button>
             </div>
+          </div>
+
+          <div className="fp-link-row">
+            <button
+              type="button"
+              className="fp-link"
+              onClick={() => { setShowForgot(true); setError(''); setResetSuccess('') }}
+            >
+              Forgot password?
+            </button>
           </div>
 
           <button

@@ -4,13 +4,15 @@ import { useAuth } from '../context/AuthContext'
 // ── Action metadata ───────────────────────────────────────────────────────────
 
 const ACTION_META = {
-  DRIVER_CREATED:     { label: 'Driver Created',     color: 'blue'  },
-  DRIVER_ACTIVATED:   { label: 'Driver Activated',   color: 'green' },
-  DRIVER_DEACTIVATED: { label: 'Driver Deactivated', color: 'red'   },
-  RATES_UPDATED:      { label: 'Rates Updated',      color: 'amber' },
-  QUOTE_GENERATED:    { label: 'Quote Generated',    color: 'teal'  },
-  QUOTE_EMAILED:      { label: 'Quote Emailed',      color: 'teal'  },
-  PASSWORD_CHANGED:   { label: 'Password Changed',   color: 'gray'  },
+  DRIVER_CREATED:           { label: 'Driver Created',      color: 'blue'   },
+  DRIVER_ACTIVATED:         { label: 'Driver Activated',    color: 'green'  },
+  DRIVER_DEACTIVATED:       { label: 'Driver Deactivated',  color: 'red'    },
+  RATES_UPDATED:            { label: 'Rates Updated',       color: 'amber'  },
+  QUOTE_GENERATED:          { label: 'Quote Generated',     color: 'teal'   },
+  QUOTE_EMAILED:            { label: 'Quote Emailed',       color: 'teal'   },
+  PASSWORD_CHANGED:         { label: 'Password Changed',    color: 'gray'   },
+  PASSWORD_RESET_REQUESTED: { label: 'Reset Requested',     color: 'amber'  },
+  PASSWORD_RESET_COMPLETED: { label: 'Password Reset',      color: 'green'  },
 }
 
 function ActionBadge({ action }) {

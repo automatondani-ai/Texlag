@@ -1665,3 +1665,119 @@ body {
   .deadhead-location-row { flex-direction: column; align-items: stretch; }
   .driver-quote-page { padding: 24px 16px 60px; }
 }
+
+/* ── FORGOT PASSWORD ─────────────────────────────────────────────────────── */
+
+/* "Forgot password?" link below password field */
+.fp-link-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -4px;
+}
+
+.fp-link {
+  background: none;
+  border: none;
+  font-family: var(--font);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--blue);
+  cursor: pointer;
+  padding: 2px 0;
+  border-radius: 3px;
+  transition: color 0.15s;
+}
+
+.fp-link:hover { color: var(--blue-dark); text-decoration: underline; }
+
+/* Step progress indicator */
+.fp-steps {
+  display: flex;
+  align-items: center;
+  margin-bottom: 22px;
+}
+
+.fp-step {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 1;
+}
+
+.fp-step__dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--gray-200);
+  color: var(--gray-400);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.2s, color 0.2s;
+}
+
+.fp-step--active .fp-step__dot {
+  background: var(--blue);
+  color: #fff;
+}
+
+.fp-step__label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-400);
+  transition: color 0.2s;
+}
+
+.fp-step--active .fp-step__label { color: var(--gray-700); }
+
+.fp-step-line {
+  flex: 0 0 24px;
+  height: 1.5px;
+  background: var(--gray-200);
+  margin: 0 6px;
+}
+
+/* Reset code input — large monospaced digits */
+.fp-code-input {
+  font-family: monospace;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 8px;
+  text-align: center;
+}
+
+/* "Didn't receive a code?" button */
+.fp-resend-btn {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  background: none;
+  border: none;
+  font-family: var(--font);
+  font-size: 12px;
+  color: var(--gray-400);
+  cursor: pointer;
+  text-align: center;
+  padding: 4px;
+  border-radius: var(--radius);
+  transition: color 0.15s;
+}
+
+.fp-resend-btn:hover { color: var(--blue); }
+
+/* ── DRIVER TABLE ROW TOAST ───────────────────────────────────────────────── */
+
+.row-toast {
+  font-size: 11.5px;
+  font-weight: 500;
+  margin-top: 6px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  line-height: 1.4;
+}
+
+.row-toast--ok  { background: var(--green-light); color: var(--green); }
+.row-toast--error { background: var(--red-light); color: var(--red); }
