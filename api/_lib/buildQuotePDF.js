@@ -286,9 +286,15 @@ const s = StyleSheet.create({
 
 export const fmt = n => `$${Number(n ?? 0).toFixed(2)}`
 
-/** Strip parenthetical rate details — brokers see label name only. */
+/** Label overrides applied after stripping parentheticals. */
+const LABEL_RENAME = {
+  'Fuel surcharge': 'Gas',
+}
+
+/** Strip parenthetical rate details and apply any label overrides. */
 function pdfLabel(label) {
-  return (label ?? '').replace(/\s*\(.*/, '').trim()
+  const stripped = (label ?? '').replace(/\s*\(.*/, '').trim()
+  return LABEL_RENAME[stripped] ?? stripped
 }
 
 function itemQty(item) {
@@ -397,6 +403,24 @@ export function buildDocument(quote, detentionHourlyRate = 75, logoSrc) {
             h(Text, { style: [s.tdMuted,  s.colQty] }, itemQty(item)),
             h(Text, { style: [s.tdAmount, s.colAmt] }, fmt(item.amount)),
           )
+        ),
+
+        // Backhaul surcharge — rendered separately so it always appears last,
+        // after Gas, with the fuel cost as the quantity context.
+        ...(quote.lineItems?.backhaulSurcharge != null
+          ? [h(View, {
+              key:   'backhaulSurcharge',
+              style: [s.tableRow, activeItems.length % 2 === 1 ? s.tableRowAlt : {}],
+            },
+              h(Text, { style: [s.tdLabel, s.colDesc] }, 'Backhaul Surcharge'),
+              h(Text, { style: [s.tdMuted,  s.colQty] },
+                fmt(quote.lineItems?.fuelSurcharge?.amount),
+              ),
+              h(Text, { style: [s.tdAmount, s.colAmt] },
+                fmt(quote.lineItems.backhaulSurcharge.amount),
+              ),
+            )]
+          : []
         ),
 
         h(View, { style: { ...s.totalRow, paddingHorizontal: 10 } },
