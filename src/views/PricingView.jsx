@@ -19,9 +19,10 @@ const GROUPS = [
   {
     title: 'Operating Costs',
     fields: [
-      { key: 'insuranceRate',       label: 'Insurance Rate',       hint: 'Per-mile insurance surcharge'           },
-      { key: 'trailerHoldRate',     label: 'Trailer Hold Rate',    hint: 'Per-day trailer detention fee ($)'      },
-      { key: 'gasPricePerGallon',   label: 'Gas Price Per Gallon', hint: 'Current market fuel price'              },
+      { key: 'insuranceRate',       label: 'Insurance Rate',                   hint: 'Per-mile insurance surcharge'                             },
+      { key: 'trailerHoldRate',     label: 'Trailer Hold Rate',                hint: 'Per-day trailer detention fee ($)'                        },
+      { key: 'gasPricePerGallon',   label: 'Gas Price Per Gallon',             hint: 'Current market fuel price'                                },
+      { key: 'mpg',                 label: 'Vehicle MPG (Miles Per Gallon)',   hint: 'Avg fuel efficiency for heavy freight — default 6 mpg', prefix: '' },
     ],
   },
 ]
@@ -110,20 +111,31 @@ export default function PricingView() {
           <div key={group.title} className="card" style={{ marginBottom: 14 }}>
             <p className="card__title">{group.title}</p>
             <div className="rates-grid">
-              {group.fields.map(({ key, label, hint }) => (
+              {group.fields.map(({ key, label, hint, prefix = '$' }) => (
                 <div key={key} className="field">
                   <label className="label">{label}</label>
-                  <div className="input-prefix-wrap">
-                    <span className="prefix">$</span>
+                  {prefix ? (
+                    <div className="input-prefix-wrap">
+                      <span className="prefix">{prefix}</span>
+                      <input
+                        className="input"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={rates[key] ?? ''}
+                        onChange={e => setField(key, e.target.value)}
+                      />
+                    </div>
+                  ) : (
                     <input
                       className="input"
                       type="number"
-                      min="0"
-                      step="0.01"
+                      min="0.1"
+                      step="0.1"
                       value={rates[key] ?? ''}
                       onChange={e => setField(key, e.target.value)}
                     />
-                  </div>
+                  )}
                   <span className="hint">{hint}</span>
                 </div>
               ))}

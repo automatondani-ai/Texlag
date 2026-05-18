@@ -46,6 +46,7 @@ const RATE_KEYS_AND_DEFAULTS = {
   insurance_rate:        0.15,
   trailer_hold_rate:    75.00,
   gas_price_per_gallon:  3.85,
+  mpg:                   6,
 }
 
 async function loadRates() {
@@ -138,6 +139,7 @@ export default async function handler(req, res) {
   const insuranceRate = rates.insurance_rate
   const holdRate      = rates.trailer_hold_rate
   const gasRate       = rates.gas_price_per_gallon
+  const mpg           = Math.max(0.1, Number(rates.mpg) || 6)   // guard against zero
 
   // Team loads: client CPM doubled; internal always single-driver basis
   const clientCpm   = driverMode === 'team' ? r2(baseCpm * 2) : baseCpm
@@ -163,7 +165,7 @@ export default async function handler(req, res) {
   const insuranceCharge = r2(numTripDays * insuranceRate)
   const holdCharge      = r2(numHoldDays * holdRate)
   const deadheadCharge  = r2(numDeadhead * clientCpm)
-  const gasSurcharge    = r2(totalMiles  * gasRate)
+  const gasSurcharge    = r2((totalMiles / mpg) * gasRate)
 
   const coreSubtotal = r2(
     cpmMileage +
@@ -295,13 +297,13 @@ export default async function handler(req, res) {
         amount: driverAssistFee,
       } : null,
       gasSurcharge: {
-        label:  `Fuel surcharge ($${gasRate}/mi × ${r2(totalMiles)} mi)`,
+        label:  `Fuel surcharge (${r2(totalMiles)} mi ÷ ${mpg} mpg × $${gasRate}/gal)`,
         rate:   gasRate,
         miles:  r2(totalMiles),
         amount: gasSurcharge,
       },
       backhaulSurcharge: lowBackhaul ? {
-        label:  `Low/No Backhaul surcharge (additional fuel — $${gasRate}/mi × ${r2(totalMiles)} mi)`,
+        label:  `Low/No Backhaul surcharge (additional fuel — ${r2(totalMiles)} mi ÷ ${mpg} mpg × $${gasRate}/gal)`,
         rate:   gasRate,
         miles:  r2(totalMiles),
         amount: gasSurcharge,   // same value, applied a second time
@@ -331,6 +333,7 @@ export default async function handler(req, res) {
       insuranceRate,
       holdRate,
       gasRate,
+      mpg,
     },
   })
 }
