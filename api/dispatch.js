@@ -22,12 +22,32 @@ import { buildDocument, BRAND, fmt } from './_lib/buildQuotePDF.js'
 import { logAudit, AUDIT }           from './_lib/audit.js'
 import { LOGO_BASE64 }               from './_lib/logoBase64.js'
 
-// Log logo status immediately at cold-start so it's visible in deploy logs
+// ── Cold-start diagnostics ───────────────────────────────────────────────────
+// Logged once per container spin-up — visible in Vercel function logs.
 console.log('[dispatch] module loaded — LOGO_BASE64 present:', !!LOGO_BASE64,
   LOGO_BASE64 ? `(${LOGO_BASE64.length} chars)` : '(null — Image element will be omitted from PDF)')
+console.log('[dispatch] env — RESEND_API_KEY set:', !!process.env.RESEND_API_KEY,
+  '| RESEND_FROM_EMAIL:', process.env.RESEND_FROM_EMAIL ?? '(not set — will use fallback)')
 
-const REQUIRED = ['quoteId', 'pickup', 'dropoffs', 'lineItems', 'finalQuote']
-const EMAIL_RE  = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const REQUIRED   = ['quoteId', 'pickup', 'dropoffs', 'lineItems', 'finalQuote']
+const EMAIL_RE   = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const RESEND_TIMEOUT_MS = 25_000
+
+/**
+ * Races `promise` against a hard timeout.
+ * Rejects with a clear message if the timeout fires first.
+ */
+function withTimeout(promise, ms, label = 'operation') {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`${label} timed out after ${ms / 1000}s`)),
+        ms,
+      )
+    ),
+  ])
+}
 
 // ── Email HTML template ──────────────────────────────────────────────────────
 
@@ -228,6 +248,8 @@ async function handleSendQuote(req, res, caller) {
 
   const resendKey = process.env.RESEND_API_KEY
   const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev'
+  // Env presence already logged at cold-start; log fromEmail again here so it
+  // appears near the actual send attempt in per-request log streams.
   console.log(tag, 'RESEND_API_KEY set:', !!resendKey, '| from:', fromEmail)
 
   if (!resendKey) {
@@ -268,19 +290,24 @@ async function handleSendQuote(req, res, caller) {
   let data, sendError
   try {
     const resend = new Resend(resendKey)
-    ;({ data, error: sendError } = await resend.emails.send({
-      from:    `TexLag Express <${fromEmail}>`,
-      to:      [brokerEmail.trim()],
-      subject,
-      html:    buildEmailHtml(quote, driverName),
-      attachments: [{
-        filename,
-        content:      pdfBuffer,
-        content_type: 'application/pdf',
-      }],
-    }))
+    console.log(tag, `calling Resend (timeout: ${RESEND_TIMEOUT_MS / 1000}s)…`)
+    ;({ data, error: sendError } = await withTimeout(
+      resend.emails.send({
+        from:    `TexLag Express <${fromEmail}>`,
+        to:      [brokerEmail.trim()],
+        subject,
+        html:    buildEmailHtml(quote, driverName),
+        attachments: [{
+          filename,
+          content:      pdfBuffer.toString('base64'),
+          content_type: 'application/pdf',
+        }],
+      }),
+      RESEND_TIMEOUT_MS,
+      'Resend API call',
+    ))
   } catch (e) {
-    console.error(tag, 'Resend SDK threw:', e.message)
+    console.error(tag, 'Resend threw:', e.message)
     console.error(tag, 'Resend stack:', e.stack)
     return res.status(502).json({ error: 'Email delivery failed', details: e.message })
   }
