@@ -312,7 +312,12 @@ export function buildDocument(quote, detentionHourlyRate = 75, logoSrc) {
       // Header
       h(View, { style: s.header },
         h(View, { style: s.headerLeft },
-          h(Image, { src: logoSrc ?? LOGO_BASE64, style: s.headerLogo }),
+          // Only render Image when a valid src is available — passing null
+          // to @react-pdf/renderer crashes the renderer entirely.
+          ...(logoSrc || LOGO_BASE64
+            ? [h(Image, { src: logoSrc ?? LOGO_BASE64, style: s.headerLogo })]
+            : []
+          ),
         ),
         h(View, { style: s.headerRight },
           h(Text, { style: s.headerBrand }, BRAND.name),
