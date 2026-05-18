@@ -60,6 +60,7 @@ export default function DriverQuoteForm() {
   const [quote,      setQuote]      = useState(null)
   const [error,      setError]      = useState('')
   const [pdfLoading, setPdfLoading] = useState(false)
+  const [pdfError,   setPdfError]   = useState('')
 
   // Send to broker
   const [brokerEmail,  setBrokerEmail]  = useState('')
@@ -133,6 +134,7 @@ export default function DriverQuoteForm() {
   async function downloadPDF() {
     if (!quote) return
     setPdfLoading(true)
+    setPdfError('')
     try {
       const res = await fetch('/api/dispatch', {
         method:  'POST',
@@ -140,6 +142,7 @@ export default function DriverQuoteForm() {
         body:    JSON.stringify({ action: 'generate-pdf', quote }),
       })
       if (!res.ok) {
+        // Server returned JSON error — read it and surface the message
         const err = await res.json().catch(() => ({}))
         throw new Error(err.error ?? `Server error ${res.status}`)
       }
@@ -154,6 +157,7 @@ export default function DriverQuoteForm() {
       URL.revokeObjectURL(url)
     } catch (e) {
       console.error('[downloadPDF]', e)
+      setPdfError(e.message)
     } finally {
       setPdfLoading(false)
     }
@@ -489,6 +493,7 @@ export default function DriverQuoteForm() {
           quote={quote}
           onDownloadPDF={downloadPDF}
           pdfLoading={pdfLoading}
+          pdfError={pdfError}
           brokerEmail={brokerEmail}
           onBrokerEmailChange={setBrokerEmail}
           onSend={sendToBroker}
@@ -505,7 +510,7 @@ export default function DriverQuoteForm() {
 
 function QuoteResultCard({
   quote,
-  onDownloadPDF, pdfLoading,
+  onDownloadPDF, pdfLoading, pdfError,
   brokerEmail, onBrokerEmailChange,
   onSend, sending, sendStatus, sendMessage,
 }) {
@@ -604,6 +609,11 @@ function QuoteResultCard({
               : '⬇ Download PDF'}
           </button>
         </div>
+        {pdfError && (
+          <p style={{ fontSize: 12, marginTop: 8, color: 'var(--red)', fontWeight: 500 }}>
+            ✕ PDF error: {pdfError}
+          </p>
+        )}
 
         {/* ── Send to broker panel */}
         <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--gray-100)' }}>

@@ -4,36 +4,20 @@
  * Routes by the `action` field in the request body:
  *   action: 'generate-pdf' — render a quote PDF and return it as a download
  *   action: 'send-quote'   — render the PDF and email it to the broker via Resend
+ *
+ * Logo strategy: the PNG is read from disk once at module load time via
+ * logoBase64.js (no sharp at runtime — Vercel serverless safe).
  */
 
-import sharp               from 'sharp'
-import { readFileSync }    from 'fs'
-import { fileURLToPath }   from 'url'
-import { dirname, join }   from 'path'
 import { Resend }          from 'resend'
 import { renderToBuffer }  from '@react-pdf/renderer'
 import { verifyToken }     from './_lib/auth.js'
 import { buildDocument, BRAND, fmt } from './_lib/buildQuotePDF.js'
 import { logAudit, AUDIT }           from './_lib/audit.js'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname  = dirname(__filename)
-const LOGO_PATH  = join(__dirname, '../src/assets/texlag-logo.avif')
+import { LOGO_BASE64 }               from './_lib/logoBase64.js'
 
 const REQUIRED = ['quoteId', 'pickup', 'dropoffs', 'lineItems', 'finalQuote']
 const EMAIL_RE  = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-// ── Logo conversion (cached per cold start) ──────────────────────────────────
-
-let _logoDataUrl = null
-
-async function getLogoDataUrl() {
-  if (_logoDataUrl) return _logoDataUrl
-  const avifBuf   = readFileSync(LOGO_PATH)
-  const pngBuf    = await sharp(avifBuf).png().toBuffer()
-  _logoDataUrl    = `data:image/png;base64,${pngBuf.toString('base64')}`
-  return _logoDataUrl
-}
 
 // ── Email HTML template ──────────────────────────────────────────────────────
 
@@ -152,9 +136,17 @@ function buildEmailHtml(quote, driverName) {
 </html>`
 }
 
+// ── PDF helper ────────────────────────────────────────────────────────────────
+
+async function renderPdf(quote, detentionHourlyRate) {
+  return renderToBuffer(
+    buildDocument(quote, Number(detentionHourlyRate) || 75, LOGO_BASE64)
+  )
+}
+
 // ── action: 'generate-pdf' ────────────────────────────────────────────────────
 
-async function handleGeneratePdf(req, res, caller) {
+async function handleGeneratePdf(req, res) {
   const { quote, detentionHourlyRate = 75 } = req.body ?? {}
 
   if (!quote || typeof quote !== 'object') {
@@ -166,25 +158,8 @@ async function handleGeneratePdf(req, res, caller) {
     return res.status(400).json({ error: 'Quote is missing required fields', missing })
   }
 
-  let logoDataUrl
-  try {
-    logoDataUrl = await getLogoDataUrl()
-    console.log('[dispatch/generate-pdf] logo converted — bytes:', logoDataUrl.length)
-  } catch (e) {
-    console.error('[dispatch/generate-pdf] logo conversion failed:', e)
-    logoDataUrl = null   // buildDocument falls back to embedded LOGO_BASE64
-  }
-
-  let buffer
-  try {
-    buffer = await renderToBuffer(
-      buildDocument(quote, Number(detentionHourlyRate) || 75, logoDataUrl)
-    )
-    console.log('[dispatch/generate-pdf] PDF rendered — bytes:', buffer.length)
-  } catch (e) {
-    console.error('[dispatch/generate-pdf] renderToBuffer failed:', e)
-    return res.status(500).json({ error: `PDF generation failed: ${e.message}` })
-  }
+  const buffer = await renderPdf(quote, detentionHourlyRate)
+  console.log('[dispatch/generate-pdf] PDF rendered — bytes:', buffer.length)
 
   const filename = `TexLag-Quote-${quote.quoteId}.pdf`
   res.setHeader('Content-Type',        'application/pdf')
@@ -205,7 +180,6 @@ async function handleSendQuote(req, res, caller) {
   if (!brokerEmail || typeof brokerEmail !== 'string' || !EMAIL_RE.test(brokerEmail.trim())) {
     return res.status(400).json({ error: '`brokerEmail` must be a valid email address' })
   }
-
   if (!quote || typeof quote !== 'object') {
     return res.status(400).json({ error: '`quote` object is required in the request body' })
   }
@@ -218,38 +192,18 @@ async function handleSendQuote(req, res, caller) {
   const resendKey = process.env.RESEND_API_KEY
   const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev'
 
-  console.log('[dispatch/send-quote] env check — RESEND_API_KEY set:', !!resendKey, '| from:', fromEmail)
-
   if (!resendKey) {
-    console.error('[dispatch/send-quote] RESEND_API_KEY is not configured')
     return res.status(500).json({ error: 'RESEND_API_KEY is not configured' })
   }
 
-  let logoDataUrl
-  try {
-    logoDataUrl = await getLogoDataUrl()
-    console.log('[dispatch/send-quote] logo converted — bytes:', logoDataUrl.length)
-  } catch (e) {
-    console.error('[dispatch/send-quote] logo conversion failed:', e)
-    logoDataUrl = null   // buildDocument falls back to embedded LOGO_BASE64
-  }
-
-  let pdfBuffer
-  try {
-    pdfBuffer = await renderToBuffer(
-      buildDocument(quote, Number(detentionHourlyRate) || 75, logoDataUrl)
-    )
-    console.log('[dispatch/send-quote] PDF generated — bytes:', pdfBuffer.length)
-  } catch (e) {
-    console.error('[dispatch/send-quote] PDF generation failed:', e)
-    return res.status(500).json({ error: `PDF generation failed: ${e.message}` })
-  }
+  const pdfBuffer = await renderPdf(quote, detentionHourlyRate)
+  console.log('[dispatch/send-quote] PDF generated — bytes:', pdfBuffer.length)
 
   const driverName = `${caller.firstName ?? ''} ${caller.lastName ?? ''}`.trim()
   const subject    = `Freight Quote — TexLag Express — ${quote.quoteId}`
   const filename   = `TexLag-Quote-${quote.quoteId}.pdf`
 
-  console.log('[dispatch/send-quote] sending — from:', fromEmail, '| to:', brokerEmail.trim(), '| subject:', subject)
+  console.log('[dispatch/send-quote] sending to:', brokerEmail.trim())
 
   const resend = new Resend(resendKey)
 
@@ -269,7 +223,7 @@ async function handleSendQuote(req, res, caller) {
       ],
     }))
   } catch (e) {
-    console.error('[dispatch/send-quote] Resend SDK threw unexpectedly:', e)
+    console.error('[dispatch/send-quote] Resend SDK threw:', e)
     return res.status(502).json({ error: 'Email delivery failed', details: e.message })
   }
 
@@ -301,27 +255,36 @@ async function handleSendQuote(req, res, caller) {
 // ── Router ────────────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' })
-  }
-
-  // Both actions require authentication
-  let caller
+  // Top-level catch: any unhandled throw returns a proper JSON 500, never an
+  // HTML error page (which would cause "Unexpected token" on the frontend).
   try {
-    caller = verifyToken(req)
-  } catch (e) {
-    return res.status(e.status ?? 401).json({ error: e.message })
-  }
+    if (req.method !== 'POST') {
+      return res.status(405).json({ error: 'Method not allowed' })
+    }
 
-  const { action } = req.body ?? {}
+    let caller
+    try {
+      caller = verifyToken(req)
+    } catch (e) {
+      return res.status(e.status ?? 401).json({ error: e.message })
+    }
 
-  switch (action) {
-    case 'generate-pdf': return handleGeneratePdf(req, res, caller)
-    case 'send-quote':   return handleSendQuote(req, res, caller)
-    default:
-      return res.status(400).json({
-        error:   '`action` must be one of: generate-pdf, send-quote',
-        allowed: ['generate-pdf', 'send-quote'],
-      })
+    const { action } = req.body ?? {}
+
+    switch (action) {
+      case 'generate-pdf': return await handleGeneratePdf(req, res)
+      case 'send-quote':   return await handleSendQuote(req, res, caller)
+      default:
+        return res.status(400).json({
+          error:   '`action` must be one of: generate-pdf, send-quote',
+          allowed: ['generate-pdf', 'send-quote'],
+        })
+    }
+  } catch (err) {
+    console.error('[dispatch] unhandled error:', err)
+    // Guard against sending a second response if headers were already sent
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message ?? 'Internal server error' })
+    }
   }
 }
