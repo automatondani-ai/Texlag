@@ -50,7 +50,7 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
     setErrorQ('')
     try {
       const res  = await fetch(
-        `/api/admin/drivers/quotes?email=${encodeURIComponent(driver.email)}&page=${p}`,
+        `/api/admin/drivers?action=quotes&email=${encodeURIComponent(driver.email)}&page=${p}`,
         { headers: { Authorization: `Bearer ${getToken()}` } }
       )
       const data = await res.json()
@@ -71,10 +71,10 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
     setToggling(true)
     setToggleMsg('')
     try {
-      const res  = await fetch('/api/admin/drivers/toggle-status', {
+      const res  = await fetch('/api/admin/drivers', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body:    JSON.stringify({ email: driver.email }),
+        body:    JSON.stringify({ action: 'toggle-status', email: driver.email }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
@@ -258,10 +258,10 @@ export default function DriversView() {
   async function toggleStatus(email) {
     setToggling(email)
     try {
-      const res  = await fetch('/api/admin/drivers/toggle-status', {
+      const res  = await fetch('/api/admin/drivers', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body:    JSON.stringify({ email }),
+        body:    JSON.stringify({ action: 'toggle-status', email }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
@@ -286,10 +286,10 @@ export default function DriversView() {
     setFormSuccess('')
     setCreating(true)
     try {
-      const res  = await fetch('/api/auth/register', {
+      const res  = await fetch('/api/auth', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body:    JSON.stringify({ ...form, role: 'driver' }),
+        body:    JSON.stringify({ action: 'register', ...form, role: 'driver' }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)

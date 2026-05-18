@@ -134,10 +134,10 @@ export default function DriverQuoteForm() {
     if (!quote) return
     setPdfLoading(true)
     try {
-      const res = await fetch('/api/generate-pdf', {
+      const res = await fetch('/api/dispatch', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body:    JSON.stringify({ quote }),
+        body:    JSON.stringify({ action: 'generate-pdf', quote }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
@@ -169,10 +169,10 @@ export default function DriverQuoteForm() {
     setSendStatus('')
     setSendMessage('')
     try {
-      const res  = await fetch('/api/send-quote', {
+      const res  = await fetch('/api/dispatch', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body:    JSON.stringify({ quote, brokerEmail: brokerEmail.trim() }),
+        body:    JSON.stringify({ action: 'send-quote', quote, brokerEmail: brokerEmail.trim() }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)

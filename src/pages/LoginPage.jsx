@@ -15,10 +15,10 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      const res  = await fetch('/api/auth/login', {
+      const res  = await fetch('/api/auth', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email, password }),
+        body:    JSON.stringify({ action: 'login', email, password }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)

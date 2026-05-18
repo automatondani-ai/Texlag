@@ -1,15 +1,93 @@
-import bcrypt  from 'bcryptjs'
-import jwt     from 'jsonwebtoken'
-import { Resend } from 'resend'
-import redis   from '../_lib/redis.js'
-import { logAudit, AUDIT } from '../_lib/audit.js'
+/**
+ * POST /api/auth
+ *
+ * Routes by the `action` field in the request body:
+ *   action: 'login'           — authenticate and return JWT
+ *   action: 'register'        — create a new user account (admin only)
+ *   action: 'change-password' — update password for the authenticated caller
+ */
+
+import bcrypt      from 'bcryptjs'
+import jwt         from 'jsonwebtoken'
+import { Resend }  from 'resend'
+import redis       from './_lib/redis.js'
+import { signToken, verifyToken } from './_lib/auth.js'
+import { logAudit, AUDIT }        from './_lib/audit.js'
+
+// ── Shared constants ──────────────────────────────────────────────────────────
 
 const DEFAULT_PASSWORD = 'Password@123'
-const VALID_ROLES = ['admin', 'driver']
-const EMAIL_RE    = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const PHONE_RE    = /^\+?[\d\s\-().]{7,20}$/
+const VALID_ROLES      = ['admin', 'driver']
+const EMAIL_RE         = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const PHONE_RE         = /^\+?[\d\s\-().]{7,20}$/
 
-// ── Local auth: JWT admin OR ADMIN_SECRET bootstrap token ─────────────────────
+// Pre-generated bcrypt hash used when a user is not found so response time is
+// indistinguishable from a real failed-password attempt (timing safety).
+const DUMMY_HASH = '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQyCaBLzMNQXG0sDhf0oUAAv2'
+
+const PW_RULES = [
+  { id: 'len',     test: p => p.length >= 8,           msg: 'at least 8 characters'          },
+  { id: 'upper',   test: p => /[A-Z]/.test(p),         msg: 'at least one uppercase letter'  },
+  { id: 'number',  test: p => /[0-9]/.test(p),         msg: 'at least one number'            },
+  { id: 'special', test: p => /[^A-Za-z0-9]/.test(p), msg: 'at least one special character' },
+]
+
+// ── action: 'login' ───────────────────────────────────────────────────────────
+
+async function handleLogin(req, res) {
+  const { email, password } = req.body ?? {}
+
+  if (!email || typeof email !== 'string' || !email.trim()) {
+    return res.status(400).json({ error: '`email` is required' })
+  }
+  if (!password || typeof password !== 'string') {
+    return res.status(400).json({ error: '`password` is required' })
+  }
+
+  const normalizedEmail = email.toLowerCase().trim()
+
+  let user
+  try {
+    user = await redis.get(`users:${normalizedEmail}`)
+  } catch {
+    return res.status(502).json({ error: 'Database error' })
+  }
+
+  // Always run bcrypt.compare to keep response time constant (timing safety)
+  const hashToCheck = user?.passwordHash ?? DUMMY_HASH
+  const match = await bcrypt.compare(password, hashToCheck)
+
+  if (!user || !match) {
+    return res.status(401).json({ error: 'Invalid email or password' })
+  }
+
+  if (user.active === false) {
+    return res.status(403).json({ error: 'Account deactivated — contact your administrator' })
+  }
+
+  const claims = {
+    email:     user.email,
+    firstName: user.firstName,
+    lastName:  user.lastName,
+    role:      user.role,
+  }
+
+  let token
+  try {
+    token = signToken(claims)
+  } catch (e) {
+    return res.status(e.status ?? 500).json({ error: e.message })
+  }
+
+  return res.status(200).json({
+    token,
+    user:               claims,
+    mustChangePassword: user.mustChangePassword === true,
+  })
+}
+
+// ── action: 'register' ────────────────────────────────────────────────────────
+
 function authorizeRegister(req, res) {
   const header = req.headers['authorization'] ?? ''
   const token  = header.startsWith('Bearer ') ? header.slice(7) : header.trim()
@@ -42,7 +120,6 @@ function authorizeRegister(req, res) {
   return null
 }
 
-// ── Welcome email ─────────────────────────────────────────────────────────────
 function buildWelcomeEmail(firstName, email) {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -57,8 +134,6 @@ function buildWelcomeEmail(firstName, email) {
       <td align="center">
         <table width="580" cellpadding="0" cellspacing="0" border="0"
                style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.09);">
-
-          <!-- Header -->
           <tr>
             <td style="background:#1e293b;padding:28px 40px 24px;">
               <div style="font-size:22px;font-weight:700;color:#ffffff;letter-spacing:0.3px;margin-bottom:6px;">
@@ -69,8 +144,6 @@ function buildWelcomeEmail(firstName, email) {
               </div>
             </td>
           </tr>
-
-          <!-- Body -->
           <tr>
             <td style="padding:32px 40px 28px;">
               <p style="font-size:20px;font-weight:700;color:#1e293b;margin:0 0 8px 0;">
@@ -79,13 +152,10 @@ function buildWelcomeEmail(firstName, email) {
               <p style="font-size:13px;color:#64748b;margin:0 0 24px 0;">
                 Your TexLag Express driver account has been created.
               </p>
-
               <p style="font-size:14px;color:#334155;line-height:1.7;margin:0 0 20px 0;">
                 You can now log in to the driver portal using the credentials below.
                 You will be asked to set a new password on your first login.
               </p>
-
-              <!-- Credentials card -->
               <table width="100%" cellpadding="0" cellspacing="0" border="0"
                      style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:24px;">
                 <tr>
@@ -101,8 +171,6 @@ function buildWelcomeEmail(firstName, email) {
                   </td>
                 </tr>
               </table>
-
-              <!-- Notice banner -->
               <table width="100%" cellpadding="0" cellspacing="0" border="0"
                      style="background:#fffbeb;border-left:3px solid #f59e0b;border-radius:2px;margin-bottom:24px;">
                 <tr>
@@ -114,15 +182,12 @@ function buildWelcomeEmail(firstName, email) {
                   </td>
                 </tr>
               </table>
-
               <p style="font-size:14px;color:#334155;line-height:1.7;margin:0;">
                 Regards,<br>
                 <strong style="color:#1e293b;">TexLag Express Admin</strong>
               </p>
             </td>
           </tr>
-
-          <!-- Footer -->
           <tr>
             <td style="background:#f8fafc;padding:16px 40px;border-top:1px solid #e2e8f0;">
               <p style="font-size:11px;color:#94a3b8;margin:0;line-height:1.8;text-align:center;">
@@ -131,7 +196,6 @@ function buildWelcomeEmail(firstName, email) {
               </p>
             </td>
           </tr>
-
         </table>
       </td>
     </tr>
@@ -143,12 +207,11 @@ function buildWelcomeEmail(firstName, email) {
 async function sendWelcomeEmail(firstName, email) {
   const resendKey = process.env.RESEND_API_KEY
   if (!resendKey) {
-    console.warn('[register] RESEND_API_KEY not set — skipping welcome email')
+    console.warn('[auth/register] RESEND_API_KEY not set — skipping welcome email')
     return
   }
   const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev'
   const resend    = new Resend(resendKey)
-
   try {
     const { data, error } = await resend.emails.send({
       from:    `TexLag Express <${fromEmail}>`,
@@ -157,21 +220,16 @@ async function sendWelcomeEmail(firstName, email) {
       html:    buildWelcomeEmail(firstName, email),
     })
     if (error) {
-      console.error('[register] Welcome email failed:', JSON.stringify(error))
+      console.error('[auth/register] Welcome email failed:', JSON.stringify(error))
     } else {
-      console.log('[register] Welcome email sent — messageId:', data?.id)
+      console.log('[auth/register] Welcome email sent — messageId:', data?.id)
     }
   } catch (e) {
-    console.error('[register] Welcome email threw:', e.message)
+    console.error('[auth/register] Welcome email threw:', e.message)
   }
 }
 
-// ── Handler ───────────────────────────────────────────────────────────────────
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' })
-  }
-
+async function handleRegister(req, res) {
   const admin = authorizeRegister(req, res)
   if (!admin) return
 
@@ -183,7 +241,6 @@ export default async function handler(req, res) {
     role  = 'driver',
   } = req.body ?? {}
 
-  // ── Input validation ────────────────────────────────────────────────────────
   if (!email || !EMAIL_RE.test(String(email).trim())) {
     return res.status(400).json({ error: 'A valid `email` is required' })
   }
@@ -197,14 +254,11 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: '`phone` format is invalid' })
   }
   if (!VALID_ROLES.includes(role)) {
-    return res.status(400).json({
-      error: `\`role\` must be one of: ${VALID_ROLES.join(', ')}`,
-    })
+    return res.status(400).json({ error: `\`role\` must be one of: ${VALID_ROLES.join(', ')}` })
   }
 
   const normalizedEmail = String(email).toLowerCase().trim()
 
-  // ── Duplicate check ─────────────────────────────────────────────────────────
   let existing
   try {
     existing = await redis.get(`users:${normalizedEmail}`)
@@ -216,7 +270,6 @@ export default async function handler(req, res) {
     return res.status(409).json({ error: 'A user with this email already exists' })
   }
 
-  // ── Persist ─────────────────────────────────────────────────────────────────
   const passwordHash       = await bcrypt.hash(DEFAULT_PASSWORD, 12)
   const mustChangePassword = role === 'driver'
 
@@ -238,18 +291,98 @@ export default async function handler(req, res) {
     return res.status(502).json({ error: 'Database error' })
   }
 
-  // ── Audit log ───────────────────────────────────────────────────────────────
   logAudit({
     action:      AUDIT.DRIVER_CREATED,
     performedBy: admin.email,
     description: `Driver account created for ${firstName.trim()} ${lastName.trim()} (${normalizedEmail})`,
   })
 
-  // ── Send welcome email (non-blocking for drivers) ────────────────────────────
   if (role === 'driver') {
     sendWelcomeEmail(firstName.trim(), normalizedEmail).catch(() => {})
   }
 
   const { passwordHash: _, ...safeUser } = user
   return res.status(201).json({ user: safeUser })
+}
+
+// ── action: 'change-password' ─────────────────────────────────────────────────
+
+async function handleChangePassword(req, res) {
+  let caller
+  try {
+    caller = verifyToken(req)
+  } catch (e) {
+    return res.status(e.status ?? 401).json({ error: e.message })
+  }
+
+  const { newPassword } = req.body ?? {}
+
+  if (!newPassword || typeof newPassword !== 'string') {
+    return res.status(400).json({ error: '`newPassword` is required' })
+  }
+
+  const failed = PW_RULES.filter(r => !r.test(newPassword))
+  if (failed.length) {
+    return res.status(400).json({
+      error:  'Password does not meet complexity requirements',
+      failed: failed.map(r => r.msg),
+    })
+  }
+
+  let user
+  try {
+    user = await redis.get(`users:${caller.email}`)
+  } catch {
+    return res.status(502).json({ error: 'Database error' })
+  }
+
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' })
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 12)
+
+  const updated = {
+    ...user,
+    passwordHash,
+    mustChangePassword: false,
+    passwordChangedAt:  new Date().toISOString(),
+  }
+
+  try {
+    await redis.set(`users:${caller.email}`, updated)
+  } catch {
+    return res.status(502).json({ error: 'Database error' })
+  }
+
+  console.log('[auth/change-password] password updated for:', caller.email)
+
+  logAudit({
+    action:      AUDIT.PASSWORD_CHANGED,
+    performedBy: caller.email,
+    description: `Password changed for ${caller.email}`,
+  })
+
+  return res.status(200).json({ success: true })
+}
+
+// ── Router ────────────────────────────────────────────────────────────────────
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  const { action } = req.body ?? {}
+
+  switch (action) {
+    case 'login':           return handleLogin(req, res)
+    case 'register':        return handleRegister(req, res)
+    case 'change-password': return handleChangePassword(req, res)
+    default:
+      return res.status(400).json({
+        error:   '`action` must be one of: login, register, change-password',
+        allowed: ['login', 'register', 'change-password'],
+      })
+  }
 }

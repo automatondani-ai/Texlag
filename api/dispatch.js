@@ -1,17 +1,9 @@
 /**
- * POST /api/send-quote
+ * POST /api/dispatch
  *
- * Body: { quote, brokerEmail, detentionHourlyRate? }
- * Auth: Bearer JWT (any valid session — admin or driver)
- *
- * Generates the quote PDF from the shared builder, then sends it to the
- * broker's address via the Resend SDK with the PDF attached.
- *
- * Required env vars:
- *   RESEND_API_KEY     — Resend secret key
- *   RESEND_FROM_EMAIL  — Verified sender address, e.g. quotes@yourdomain.com
- *                        Falls back to onboarding@resend.dev when not set
- *                        (Resend test address — only delivers to your own account).
+ * Routes by the `action` field in the request body:
+ *   action: 'generate-pdf' — render a quote PDF and return it as a download
+ *   action: 'send-quote'   — render the PDF and email it to the broker via Resend
  */
 
 import sharp               from 'sharp'
@@ -22,11 +14,14 @@ import { Resend }          from 'resend'
 import { renderToBuffer }  from '@react-pdf/renderer'
 import { verifyToken }     from './_lib/auth.js'
 import { buildDocument, BRAND, fmt } from './_lib/buildQuotePDF.js'
-import { logAudit, AUDIT } from './_lib/audit.js'
+import { logAudit, AUDIT }           from './_lib/audit.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname  = dirname(__filename)
 const LOGO_PATH  = join(__dirname, '../src/assets/texlag-logo.avif')
+
+const REQUIRED = ['quoteId', 'pickup', 'dropoffs', 'lineItems', 'finalQuote']
+const EMAIL_RE  = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 // ── Logo conversion (cached per cold start) ──────────────────────────────────
 
@@ -40,16 +35,13 @@ async function getLogoDataUrl() {
   return _logoDataUrl
 }
 
-const REQUIRED = ['quoteId', 'pickup', 'dropoffs', 'lineItems', 'finalQuote']
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
 // ── Email HTML template ──────────────────────────────────────────────────────
 
 function buildEmailHtml(quote, driverName) {
   const dateStr = new Date(quote.generatedAt ?? Date.now()).toLocaleDateString('en-US', {
     year: 'numeric', month: 'long', day: 'numeric',
   })
-  const route       = [quote.pickup, ...(quote.dropoffs ?? [])].join(' → ')
+  const route        = [quote.pickup, ...(quote.dropoffs ?? [])].join(' → ')
   const jurisdiction = quote.jurisdiction === 'intrastate' ? 'Intrastate' : 'Interstate'
 
   return `<!DOCTYPE html>
@@ -60,14 +52,11 @@ function buildEmailHtml(quote, driverName) {
   <title>Freight Quote — TexLag Express — ${quote.quoteId}</title>
 </head>
 <body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
-
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1f5f9;padding:40px 0;">
     <tr>
       <td align="center">
         <table width="600" cellpadding="0" cellspacing="0" border="0"
                style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.09);">
-
-          <!-- ── Header band -->
           <tr>
             <td style="background:#1e293b;padding:28px 40px 24px;">
               <div style="font-size:22px;font-weight:700;color:#ffffff;letter-spacing:0.3px;margin-bottom:6px;">
@@ -78,19 +67,13 @@ function buildEmailHtml(quote, driverName) {
               </div>
             </td>
           </tr>
-
-          <!-- ── Body -->
           <tr>
             <td style="padding:32px 40px 28px;">
-
               <p style="font-size:16px;font-weight:700;color:#1e293b;margin:0 0 6px 0;">
                 Freight Quote — ${quote.quoteId}
               </p>
               <p style="font-size:13px;color:#64748b;margin:0 0 24px 0;">${dateStr}</p>
-
-              <p style="font-size:14px;color:#334155;line-height:1.7;margin:0 0 24px 0;">
-                Dear Broker,
-              </p>
+              <p style="font-size:14px;color:#334155;line-height:1.7;margin:0 0 24px 0;">Dear Broker,</p>
               <p style="font-size:14px;color:#334155;line-height:1.7;margin:0 0 24px 0;">
                 Please find attached a freight quote prepared by
                 <strong style="color:#1e293b;">${driverName}</strong>
@@ -98,8 +81,6 @@ function buildEmailHtml(quote, driverName) {
                 itemised cost breakdown including all applicable rates,
                 surcharges, and policy terms applicable to this load.
               </p>
-
-              <!-- ── Quote summary card -->
               <table width="100%" cellpadding="0" cellspacing="0" border="0"
                      style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:20px;">
                 <tr>
@@ -129,8 +110,6 @@ function buildEmailHtml(quote, driverName) {
                   </td>
                 </tr>
               </table>
-
-              <!-- ── Final quote total bar -->
               <table width="100%" cellpadding="0" cellspacing="0" border="0"
                      style="background:#0f172a;border-radius:6px;margin-bottom:28px;">
                 <tr>
@@ -144,24 +123,19 @@ function buildEmailHtml(quote, driverName) {
                   </td>
                 </tr>
               </table>
-
               <p style="font-size:14px;color:#334155;line-height:1.7;margin:0 0 24px 0;">
                 This quote is valid for <strong>48 hours</strong> from the date
                 of issue. All rates are subject to change based on current fuel
                 prices and market conditions. To confirm availability and proceed
                 with booking, please reply to this email or contact us directly.
               </p>
-
               <p style="font-size:14px;color:#334155;line-height:1.7;margin:0;">
                 Regards,<br>
                 <strong style="color:#1e293b;">${driverName}</strong><br>
                 <span style="color:#64748b;">TexLag Express</span>
               </p>
-
             </td>
           </tr>
-
-          <!-- ── Footer -->
           <tr>
             <td style="background:#f8fafc;padding:16px 40px;border-top:1px solid #e2e8f0;">
               <p style="font-size:11px;color:#94a3b8;margin:0;line-height:1.8;text-align:center;">
@@ -170,39 +144,64 @@ function buildEmailHtml(quote, driverName) {
               </p>
             </td>
           </tr>
-
         </table>
       </td>
     </tr>
   </table>
-
 </body>
 </html>`
 }
 
-// ── Handler ──────────────────────────────────────────────────────────────────
+// ── action: 'generate-pdf' ────────────────────────────────────────────────────
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' })
+async function handleGeneratePdf(req, res, caller) {
+  const { quote, detentionHourlyRate = 75 } = req.body ?? {}
+
+  if (!quote || typeof quote !== 'object') {
+    return res.status(400).json({ error: '`quote` object is required in the request body' })
   }
 
-  // ── Auth ────────────────────────────────────────────────────────────────────
-  let caller
+  const missing = REQUIRED.filter(k => quote[k] == null)
+  if (missing.length) {
+    return res.status(400).json({ error: 'Quote is missing required fields', missing })
+  }
+
+  let logoDataUrl
   try {
-    caller = verifyToken(req)
+    logoDataUrl = await getLogoDataUrl()
+    console.log('[dispatch/generate-pdf] logo converted — bytes:', logoDataUrl.length)
   } catch (e) {
-    return res.status(e.status ?? 401).json({ error: e.message })
+    console.error('[dispatch/generate-pdf] logo conversion failed:', e)
+    logoDataUrl = null   // buildDocument falls back to embedded LOGO_BASE64
   }
 
-  // ── Parse body ──────────────────────────────────────────────────────────────
+  let buffer
+  try {
+    buffer = await renderToBuffer(
+      buildDocument(quote, Number(detentionHourlyRate) || 75, logoDataUrl)
+    )
+    console.log('[dispatch/generate-pdf] PDF rendered — bytes:', buffer.length)
+  } catch (e) {
+    console.error('[dispatch/generate-pdf] renderToBuffer failed:', e)
+    return res.status(500).json({ error: `PDF generation failed: ${e.message}` })
+  }
+
+  const filename = `TexLag-Quote-${quote.quoteId}.pdf`
+  res.setHeader('Content-Type',        'application/pdf')
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+  res.setHeader('Content-Length',      buffer.length)
+  res.end(buffer)
+}
+
+// ── action: 'send-quote' ──────────────────────────────────────────────────────
+
+async function handleSendQuote(req, res, caller) {
   const {
     quote,
     brokerEmail,
     detentionHourlyRate = 75,
   } = req.body ?? {}
 
-  // ── Validate ────────────────────────────────────────────────────────────────
   if (!brokerEmail || typeof brokerEmail !== 'string' || !EMAIL_RE.test(brokerEmail.trim())) {
     return res.status(400).json({ error: '`brokerEmail` must be a valid email address' })
   }
@@ -216,52 +215,46 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Quote is missing required fields', missing })
   }
 
-  // ── Env vars ────────────────────────────────────────────────────────────────
   const resendKey = process.env.RESEND_API_KEY
   const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev'
 
-  console.log('[send-quote] env check — RESEND_API_KEY set:', !!resendKey, '| from:', fromEmail)
+  console.log('[dispatch/send-quote] env check — RESEND_API_KEY set:', !!resendKey, '| from:', fromEmail)
 
   if (!resendKey) {
-    console.error('[send-quote] RESEND_API_KEY is not configured')
+    console.error('[dispatch/send-quote] RESEND_API_KEY is not configured')
     return res.status(500).json({ error: 'RESEND_API_KEY is not configured' })
   }
 
-  // ── Convert logo ────────────────────────────────────────────────────────────
   let logoDataUrl
   try {
     logoDataUrl = await getLogoDataUrl()
-    console.log('[send-quote] logo converted — bytes:', logoDataUrl.length)
+    console.log('[dispatch/send-quote] logo converted — bytes:', logoDataUrl.length)
   } catch (e) {
-    console.error('[send-quote] logo conversion failed:', e)
+    console.error('[dispatch/send-quote] logo conversion failed:', e)
     logoDataUrl = null   // buildDocument falls back to embedded LOGO_BASE64
   }
 
-  // ── Generate PDF buffer ─────────────────────────────────────────────────────
   let pdfBuffer
   try {
     pdfBuffer = await renderToBuffer(
       buildDocument(quote, Number(detentionHourlyRate) || 75, logoDataUrl)
     )
-    console.log('[send-quote] PDF generated — bytes:', pdfBuffer.length)
+    console.log('[dispatch/send-quote] PDF generated — bytes:', pdfBuffer.length)
   } catch (e) {
-    console.error('[send-quote] PDF generation failed:', e)
+    console.error('[dispatch/send-quote] PDF generation failed:', e)
     return res.status(500).json({ error: `PDF generation failed: ${e.message}` })
   }
 
-  // ── Send email via Resend ───────────────────────────────────────────────────
   const driverName = `${caller.firstName ?? ''} ${caller.lastName ?? ''}`.trim()
   const subject    = `Freight Quote — TexLag Express — ${quote.quoteId}`
   const filename   = `TexLag-Quote-${quote.quoteId}.pdf`
 
-  console.log('[send-quote] sending — from:', fromEmail, '| to:', brokerEmail.trim(), '| subject:', subject, '| attachment:', filename)
+  console.log('[dispatch/send-quote] sending — from:', fromEmail, '| to:', brokerEmail.trim(), '| subject:', subject)
 
   const resend = new Resend(resendKey)
 
   let data, sendError
   try {
-    // Pass the raw Buffer — Resend v4 handles base64 encoding internally.
-    // Providing content_type ensures email clients recognise the attachment as PDF.
     ;({ data, error: sendError } = await resend.emails.send({
       from:    `TexLag Express <${fromEmail}>`,
       to:      [brokerEmail.trim()],
@@ -276,22 +269,19 @@ export default async function handler(req, res) {
       ],
     }))
   } catch (e) {
-    console.error('[send-quote] Resend SDK threw unexpectedly:', e)
-    return res.status(502).json({
-      error:   'Email delivery failed',
-      details: e.message,
-    })
+    console.error('[dispatch/send-quote] Resend SDK threw unexpectedly:', e)
+    return res.status(502).json({ error: 'Email delivery failed', details: e.message })
   }
 
   if (sendError) {
-    console.error('[send-quote] Resend API error:', JSON.stringify(sendError))
+    console.error('[dispatch/send-quote] Resend API error:', JSON.stringify(sendError))
     return res.status(502).json({
       error:   'Email delivery failed',
       details: sendError.message ?? JSON.stringify(sendError),
     })
   }
 
-  console.log('[send-quote] email sent — messageId:', data?.id)
+  console.log('[dispatch/send-quote] email sent — messageId:', data?.id)
 
   logAudit({
     action:      AUDIT.QUOTE_EMAILED,
@@ -306,4 +296,32 @@ export default async function handler(req, res) {
     quoteId:   quote.quoteId,
     subject,
   })
+}
+
+// ── Router ────────────────────────────────────────────────────────────────────
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  // Both actions require authentication
+  let caller
+  try {
+    caller = verifyToken(req)
+  } catch (e) {
+    return res.status(e.status ?? 401).json({ error: e.message })
+  }
+
+  const { action } = req.body ?? {}
+
+  switch (action) {
+    case 'generate-pdf': return handleGeneratePdf(req, res, caller)
+    case 'send-quote':   return handleSendQuote(req, res, caller)
+    default:
+      return res.status(400).json({
+        error:   '`action` must be one of: generate-pdf, send-quote',
+        allowed: ['generate-pdf', 'send-quote'],
+      })
+  }
 }

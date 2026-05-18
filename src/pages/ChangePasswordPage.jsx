@@ -27,13 +27,13 @@ export default function ChangePasswordPage() {
     setLoading(true)
 
     try {
-      const res  = await fetch('/api/auth/change-password', {
+      const res  = await fetch('/api/auth', {
         method:  'POST',
         headers: {
           'Content-Type':  'application/json',
           'Authorization': `Bearer ${getToken()}`,
         },
-        body: JSON.stringify({ newPassword: password }),
+        body: JSON.stringify({ action: 'change-password', newPassword: password }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
