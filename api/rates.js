@@ -17,6 +17,7 @@ const RATE_CATALOGUE = [
   { kv: 'trailer_hold_rate',      client: 'trailerHoldRate',      default: 75.00 },
   { kv: 'gas_price_per_gallon',   client: 'gasPricePerGallon',    default: 3.85 },
   { kv: 'mpg',                    client: 'mpg',                  default: 6    },
+  { kv: 'speed_mph',             client: 'speedMph',             default: 65   },
   // Legacy per-mile surcharges consumed by /api/quote
   { kv: 'cpm',                    client: 'cpm',                  default: 1.85 },
   { kv: 'gas_surcharge',          client: 'gasSurcharge',         default: 0.18 },

@@ -23,6 +23,7 @@ const GROUPS = [
       { key: 'trailerHoldRate',     label: 'Trailer Hold Rate',                hint: 'Per-day trailer detention fee ($)'                        },
       { key: 'gasPricePerGallon',   label: 'Gas Price Per Gallon',             hint: 'Current market fuel price'                                },
       { key: 'mpg',                 label: 'Vehicle MPG (Miles Per Gallon)',   hint: 'Avg fuel efficiency for heavy freight — default 6 mpg', prefix: '' },
+      { key: 'speedMph',           label: 'Average Speed (mph)',              hint: 'Used to auto-calculate trip days: miles ÷ speed ÷ 11 hrs — default 65', prefix: '' },
     ],
   },
 ]

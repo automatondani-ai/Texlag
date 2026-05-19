@@ -35,7 +35,6 @@ export default function DriverQuoteForm() {
   const [dropoffs,        setDropoffs]        = useState([''])
 
   // Trip details
-  const [tripDays,        setTripDays]        = useState('')
   const [trailerHoldDays, setTrailerHoldDays] = useState('')
 
   // Deadhead
@@ -211,7 +210,6 @@ export default function DriverQuoteForm() {
           pickup:          pickup.trim(),
           dropoffs:        dropoffs.map(d => d.trim()),
           driverMode,
-          tripDays:        Number(tripDays)        || 0,
           trailerHoldDays: Number(trailerHoldDays) || 0,
           deadheadMiles:   Number(deadheadMiles)   || 0,
           toggles: {
@@ -301,18 +299,11 @@ export default function DriverQuoteForm() {
         {/* ── 3. Trip details ────────────────────────────────────────────── */}
         <div className="card">
           <p className="card__title">Trip Details</p>
-          <div className="trip-details-grid">
-            <div className="field">
-              <label className="label">Estimated Trip Days</label>
-              <input className="input" type="number" min="0" step="1" placeholder="e.g. 3"
-                value={tripDays} onChange={e => setTripDays(e.target.value)} />
-            </div>
-            <div className="field">
-              <label className="label">Trailer Hold Days</label>
-              <input className="input" type="number" min="0" step="1" placeholder="0"
-                value={trailerHoldDays} onChange={e => setTrailerHoldDays(e.target.value)} />
-              <span className="hint">Days trailer remains at drop-off facility</span>
-            </div>
+          <div className="field">
+            <label className="label">Trailer Hold Days</label>
+            <input className="input" type="number" min="0" step="1" placeholder="0"
+              value={trailerHoldDays} onChange={e => setTrailerHoldDays(e.target.value)} />
+            <span className="hint">Days trailer remains at drop-off facility</span>
           </div>
         </div>
 
@@ -535,6 +526,22 @@ function QuoteResultCard({
         <div className="quote-result__meta">
           {quote.totalMiles} mi &middot; {quote.driverMode} &middot; {quote.jurisdiction}
         </div>
+      </div>
+
+      {/* Estimated trip duration — auto-calculated from speed variable */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '8px 16px',
+        background: 'var(--gray-50, #f8fafc)',
+        borderBottom: '1px solid var(--gray-100)',
+        fontSize: 12,
+        color: 'var(--gray-600)',
+      }}>
+        <span style={{ fontWeight: 600 }}>Estimated Trip Duration:</span>
+        <span>{quote.tripDays} day{quote.tripDays !== 1 ? 's' : ''}</span>
+        <span style={{ color: 'var(--gray-400)', fontSize: 11 }}>
+          (auto-calculated from {quote.totalMiles} mi ÷ {quote.ratesSnapshot?.speed ?? 65} mph ÷ 11 hrs)
+        </span>
       </div>
 
       <div className="quote-result__body">

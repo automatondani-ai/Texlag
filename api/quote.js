@@ -47,6 +47,7 @@ const RATE_KEYS_AND_DEFAULTS = {
   trailer_hold_rate:    75.00,
   gas_price_per_gallon:  3.85,
   mpg:                   6,
+  speed_mph:            65,
 }
 
 async function loadRates() {
@@ -82,7 +83,6 @@ export default async function handler(req, res) {
     pickup,
     dropoffs,
     driverMode      = 'solo',
-    tripDays        = 0,
     trailerHoldDays = 0,
     deadheadMiles   = 0,
     toggles         = {},
@@ -114,7 +114,6 @@ export default async function handler(req, res) {
   const { driverAssist = false, detention = false, lowBackhaul = false } = toggles
   const driverAssistFee = driverAssist ? Math.max(0, Number(extras.driverAssistAmount) || 0) : 0
   const detentionFee    = detention    ? Math.max(0, Number(extras.detentionAmount)    || 0) : 0
-  const numTripDays     = Math.max(0, Number(tripDays)        || 0)
   const numHoldDays     = Math.max(0, Number(trailerHoldDays) || 0)
   const numDeadhead     = Math.max(0, Number(deadheadMiles)   || 0)
 
@@ -128,6 +127,15 @@ export default async function handler(req, res) {
   } catch (err) {
     return res.status(502).json({ error: err.message })
   }
+
+  // ── Auto-calculate trip days ─────────────────────────────────────────────────
+  //
+  // Trip hours = Total Route Miles ÷ Average Speed (mph)
+  // Trip days  = Math.ceil(Trip hours ÷ 11)   [11 hrs = HOS daily driving limit]
+  // Minimum 1 day always (even sub-day loads still occupy one work day).
+  const speed       = Math.max(1, Number(rates.speed_mph) || 65)
+  const tripHours   = totalMiles / speed
+  const numTripDays = Math.max(1, Math.ceil(tripHours / 11))
 
   // ── Select jurisdiction-based rates ─────────────────────────────────────────
   const baseCpm      = jurisdiction === 'interstate'
@@ -255,6 +263,7 @@ export default async function handler(req, res) {
 
     // ── Options ───────────────────────────────────────────────────────────────
     driverMode,
+    tripDays:   numTripDays,
     toggles: { driverAssist, detention, lowBackhaul },
 
     // ── Line items ────────────────────────────────────────────────────────────
@@ -334,6 +343,7 @@ export default async function handler(req, res) {
       holdRate,
       gasRate,
       mpg,
+      speed,
     },
   })
 }
