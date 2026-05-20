@@ -216,45 +216,25 @@ export default async function handler(req, res) {
     return res.status(502).json({ error: 'Failed to generate quote ID' })
   }
 
-  // ── Build response ──────────────────────────────────────────────────────────
-  const pl = pickup.trim()
-  const dl = dropoffs.map(d => d.trim())
+  // ── Build full response payload ─────────────────────────────────────────────
+  //
+  // The payload is constructed once and used for both the HTTP response and the
+  // Redis snapshot so that admins can reconstruct a complete PDF at any time.
+  const pl          = pickup.trim()
+  const dl          = dropoffs.map(d => d.trim())
+  const generatedAt = new Date().toISOString()
 
-  // ── Persist quote snapshot (fire-and-forget) ────────────────────────────────
-  // Stored for the admin dashboard — does not block the response.
-  const snapshot = {
+  const quotePayload = {
+    // ── Identity ────────────────────────────────────────────────────────────
     quoteId,
-    generatedAt: new Date().toISOString(),
-    driverEmail: caller.email,
-    driverName:  `${caller.firstName ?? ''} ${caller.lastName ?? ''}`.trim(),
-    pickup:      pl,
-    dropoffs:    dl,
-    totalMiles:  r2(totalMiles),
-    finalQuote,
-  }
-  logAudit({
-    action:      AUDIT.QUOTE_GENERATED,
-    performedBy: caller.email,
-    description: `Quote ${quoteId} generated — ${pl} → ${dl[dl.length - 1]} — Total: $${finalQuote.toFixed(2)}`,
-  })
-
-  Promise.all([
-    redis.set(`quote:${quoteId}`, snapshot),
-    redis.lpush(`quotes:driver:${caller.email}`, quoteId),
-    redis.incr('quotes:platform:total'),
-  ]).catch(err => console.error('[quote] snapshot save failed:', err))
-
-  return res.status(200).json({
-    // ── Identity ──────────────────────────────────────────────────────────────
-    quoteId,
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     driver: {
       email:     caller.email,
       firstName: caller.firstName,
       lastName:  caller.lastName,
     },
 
-    // ── Route ─────────────────────────────────────────────────────────────────
+    // ── Route ───────────────────────────────────────────────────────────────
     pickup:       pl,
     dropoffs:     dl,
     jurisdiction,
@@ -265,13 +245,13 @@ export default async function handler(req, res) {
       miles: r2(m),
     })),
 
-    // ── Options ───────────────────────────────────────────────────────────────
+    // ── Options ─────────────────────────────────────────────────────────────
     driverMode,
-    tripDays:       numTripDays,
+    tripDays:        numTripDays,
     numberOfPallets: numPallets,
     toggles: { driverAssist, detention, lowBackhaul },
 
-    // ── Line items ────────────────────────────────────────────────────────────
+    // ── Line items ───────────────────────────────────────────────────────────
     // null entries are omitted by JSON serialisation
     lineItems: {
       cpmMileage: {
@@ -329,17 +309,17 @@ export default async function handler(req, res) {
       } : null,
     },
 
-    // ── Totals ────────────────────────────────────────────────────────────────
+    // ── Totals ───────────────────────────────────────────────────────────────
     coreSubtotal,
     gasSurcharge,
     backhaulApplied: lowBackhaul,
     totalQuote:  finalQuote,   // alias kept for QuoteResultCard compatibility
     finalQuote,
 
-    // ── Internal (not shown in client-facing output) ───────────────────────────
+    // ── Internal (not shown in client-facing output) ─────────────────────────
     internalDriverCost,
 
-    // ── Rates snapshot (audit trail) ──────────────────────────────────────────
+    // ── Rates snapshot (audit trail + trip-duration formula display) ─────────
     ratesSnapshot: {
       jurisdiction,
       baseCpm,
@@ -352,5 +332,21 @@ export default async function handler(req, res) {
       speed,
       driverAssistRate,
     },
+  }
+
+  // ── Audit + persist (fire-and-forget) ───────────────────────────────────────
+  // Full payload is stored so admins can regenerate the PDF at any time.
+  logAudit({
+    action:      AUDIT.QUOTE_GENERATED,
+    performedBy: caller.email,
+    description: `Quote ${quoteId} generated — ${pl} → ${dl[dl.length - 1]} — Total: $${finalQuote.toFixed(2)}`,
   })
+
+  Promise.all([
+    redis.set(`quote:${quoteId}`, quotePayload),
+    redis.lpush(`quotes:driver:${caller.email}`, quoteId),
+    redis.incr('quotes:platform:total'),
+  ]).catch(err => console.error('[quote] snapshot save failed:', err))
+
+  return res.status(200).json(quotePayload)
 }

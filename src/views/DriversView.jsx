@@ -40,12 +40,14 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
   const [total,       setTotal]       = useState(0)
   const [page,        setPage]        = useState(1)
   const [totalPages,  setTotalPages]  = useState(1)
-  const [loadingQ,    setLoadingQ]    = useState(true)
-  const [errorQ,      setErrorQ]      = useState('')
-  const [toggling,    setToggling]    = useState(false)
-  const [toggleMsg,   setToggleMsg]   = useState('')
-  const [resetting,   setResetting]   = useState(false)
-  const [resetToast,  setResetToast]  = useState('')
+  const [loadingQ,       setLoadingQ]       = useState(true)
+  const [errorQ,         setErrorQ]         = useState('')
+  const [toggling,       setToggling]       = useState(false)
+  const [toggleMsg,      setToggleMsg]      = useState('')
+  const [resetting,      setResetting]      = useState(false)
+  const [resetToast,     setResetToast]     = useState('')
+  const [pdfDownloading, setPdfDownloading] = useState(new Set())
+  const [pdfError,       setPdfError]       = useState('')
 
   const fetchQuotes = useCallback(async (p) => {
     setLoadingQ(true)
@@ -106,6 +108,36 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
     } finally {
       setResetting(false)
       setTimeout(() => setResetToast(''), 5000)
+    }
+  }
+
+  async function downloadQuotePDF(q) {
+    setPdfError('')
+    setPdfDownloading(s => new Set(s).add(q.quoteId))
+    try {
+      const res = await fetch('/api/dispatch', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body:    JSON.stringify({ action: 'generate-pdf', quote: q }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? `Server error ${res.status}`)
+      }
+      const blob = await res.blob()
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `TexLag-Quote-${q.quoteId}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('[downloadQuotePDF]', e)
+      setPdfError(`PDF error for ${q.quoteId}: ${e.message}`)
+    } finally {
+      setPdfDownloading(s => { const n = new Set(s); n.delete(q.quoteId); return n })
     }
   }
 
@@ -194,6 +226,10 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
       <div className="profile-quotes">
         <div className="profile-quotes__heading">Quote History</div>
 
+        {pdfError && (
+          <div className="banner banner--error" style={{ marginBottom: 12 }}>{pdfError}</div>
+        )}
+
         {loadingQ ? (
           <div className="profile-quotes__empty"><span className="spinner spinner--dark" /></div>
         ) : errorQ ? (
@@ -210,17 +246,32 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
                     <th>Quote ID</th>
                     <th>Route</th>
                     <th style={{ textAlign: 'right' }}>Total</th>
+                    <th style={{ textAlign: 'center' }}>PDF</th>
                   </tr>
                 </thead>
                 <tbody>
                   {quotes.map(q => {
-                    const dest = q.dropoffs?.[q.dropoffs.length - 1] ?? ''
+                    const dest        = q.dropoffs?.[q.dropoffs.length - 1] ?? ''
+                    const downloading = pdfDownloading.has(q.quoteId)
                     return (
                       <tr key={q.quoteId}>
                         <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(q.generatedAt)}</td>
                         <td><code className="quote-id-code">{q.quoteId}</code></td>
                         <td className="quote-route">{q.pickup} → {dest}</td>
                         <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(q.finalQuote)}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            className="btn btn--sm btn--outline"
+                            title={`Download PDF for ${q.quoteId}`}
+                            disabled={downloading}
+                            onClick={() => downloadQuotePDF(q)}
+                            style={{ minWidth: 36, padding: '3px 8px' }}
+                          >
+                            {downloading
+                              ? <span className="spinner spinner--dark" style={{ width: 12, height: 12 }} />
+                              : '⬇'}
+                          </button>
+                        </td>
                       </tr>
                     )
                   })}
