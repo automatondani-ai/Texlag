@@ -13,7 +13,7 @@ const SIDEBAR = [
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth()
-  const [section,     setSection]     = useState('pricing')
+  const [section,     setSection]     = useState('drivers')
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   function selectSection(key) {
