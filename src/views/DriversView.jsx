@@ -218,7 +218,11 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
         </div>
         <div className="profile-info-item">
           <div className="profile-info-item__label">Total Quotes Generated</div>
-          <div className="profile-info-item__value profile-info-item__value--stat">{driver.quoteCount ?? total}</div>
+          {/* Show the live count from the API once quotes have loaded;
+              fall back to the list-row value while the fetch is in flight. */}
+          <div className="profile-info-item__value profile-info-item__value--stat">
+            {loadingQ ? (driver.quoteCount ?? '…') : total}
+          </div>
         </div>
       </div>
 
@@ -341,7 +345,16 @@ export default function DriversView() {
     }
   }, [getToken])
 
+  // Initial load
   useEffect(() => { loadDrivers() }, [loadDrivers])
+
+  // Auto-refresh every 60 s while the list view is open.
+  // Clears automatically when the driver profile is open or on unmount.
+  useEffect(() => {
+    if (selectedDriver) return           // profile is open — no background polling
+    const id = setInterval(loadDrivers, 60_000)
+    return () => clearInterval(id)
+  }, [loadDrivers, selectedDriver])
 
   // ── Toggle active status ────────────────────────────────────────────────────
   async function toggleStatus(email) {
@@ -442,12 +455,25 @@ export default function DriversView() {
             {stats.total} driver{stats.total !== 1 ? 's' : ''} registered
           </p>
         </div>
-        <button
-          className={`btn ${showForm ? 'btn--outline' : 'btn--primary'} btn--sm`}
-          onClick={() => { setShowForm(s => !s); setFormError(''); setFormSuccess('') }}
-        >
-          {showForm ? '✕ Cancel' : '+ New Driver'}
-        </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            className="btn btn--outline btn--sm"
+            onClick={loadDrivers}
+            disabled={loadingList}
+            title="Refresh driver list and quote counts"
+            style={{ minWidth: 36 }}
+          >
+            {loadingList
+              ? <><span className="spinner spinner--dark" style={{ width: 12, height: 12, marginRight: 4 }} />Refreshing…</>
+              : '↻ Refresh'}
+          </button>
+          <button
+            className={`btn ${showForm ? 'btn--outline' : 'btn--primary'} btn--sm`}
+            onClick={() => { setShowForm(s => !s); setFormError(''); setFormSuccess('') }}
+          >
+            {showForm ? '✕ Cancel' : '+ New Driver'}
+          </button>
+        </div>
       </div>
 
       {/* Global success after form closes */}

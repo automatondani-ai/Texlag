@@ -339,19 +339,32 @@ export default async function handler(req, res) {
     },
   }
 
-  // ── Audit + persist (fire-and-forget) ───────────────────────────────────────
-  // Full payload is stored so admins can regenerate the PDF at any time.
+  // ── Audit log (fire-and-forget — non-fatal) ────────────────────────────────
   logAudit({
     action:      AUDIT.QUOTE_GENERATED,
     performedBy: caller.email,
     description: `Quote ${quoteId} generated — ${pl} → ${dl[dl.length - 1]} — Total: $${finalQuote.toFixed(2)}`,
   })
 
-  Promise.all([
-    redis.set(`quote:${quoteId}`, quotePayload),
-    redis.lpush(`quotes:driver:${caller.email}`, quoteId),
-    redis.incr('quotes:platform:total'),
-  ]).catch(err => console.error('[quote] snapshot save failed:', err))
+  // ── Persist to Redis (awaited) ──────────────────────────────────────────────
+  //
+  // Storage is awaited so the admin dashboard can immediately see new quotes.
+  // Stored under:
+  //   quote:{quoteId}               — full payload (enables PDF regeneration)
+  //   quotes:driver:{email}         — ordered list of quote IDs per driver
+  //   quotes:platform:total         — platform-wide counter
+  //
+  // A storage failure is non-fatal: we log it and still return the payload to
+  // the driver so the quote is not lost from their screen.
+  try {
+    await Promise.all([
+      redis.set(`quote:${quoteId}`, quotePayload),
+      redis.lpush(`quotes:driver:${caller.email}`, quoteId),
+      redis.incr('quotes:platform:total'),
+    ])
+  } catch (err) {
+    console.error('[quote] Redis snapshot save failed — quote not persisted:', err)
+  }
 
   return res.status(200).json(quotePayload)
 }
