@@ -6,8 +6,8 @@ import AuditView   from '../views/AuditView'
 import logoUrl     from '../assets/texlag-logo.avif'
 
 const SIDEBAR = [
-  { key: 'pricing', label: 'Pricing Variables' },
   { key: 'drivers', label: 'Driver Management' },
+  { key: 'pricing', label: 'Pricing Variables' },
   { key: 'audit',   label: 'Audit Trail' },
 ]
 
