@@ -285,7 +285,16 @@ async function handleSendQuote(req, res, caller) {
   const subject    = `Freight Quote — TexLag Express — ${quote.quoteId}`
   const filename   = `TexLag-Quote-${quote.quoteId}.pdf`
 
-  console.log(tag, 'sending email — to:', brokerEmail.trim(), '| subject:', subject)
+  // TEST MODE: if RESEND_TEST_EMAIL is set, redirect all outbound mail to that
+  // address regardless of what the driver entered.  Useful when the sending
+  // domain is not yet verified with Resend in production.
+  const testOverride  = process.env.RESEND_TEST_EMAIL?.trim() || null
+  const effectiveTo   = testOverride ?? brokerEmail.trim()
+  if (testOverride) {
+    console.log(tag, 'TEST MODE — redirecting email to:', testOverride)
+  }
+
+  console.log(tag, 'sending email — to:', effectiveTo, '| subject:', subject)
 
   let data, sendError
   try {
@@ -294,7 +303,7 @@ async function handleSendQuote(req, res, caller) {
     ;({ data, error: sendError } = await withTimeout(
       resend.emails.send({
         from:    `TexLag Express <${fromEmail}>`,
-        to:      [brokerEmail.trim()],
+        to:      [effectiveTo],
         subject,
         html:    buildEmailHtml(quote, driverName),
         attachments: [{
@@ -325,13 +334,15 @@ async function handleSendQuote(req, res, caller) {
   logAudit({
     action:      AUDIT.QUOTE_EMAILED,
     performedBy: caller.email,
-    description: `Quote ${quote.quoteId} emailed to broker ${brokerEmail.trim()}`,
+    description: testOverride
+      ? `Quote ${quote.quoteId} emailed (TEST → ${testOverride}, intended: ${brokerEmail.trim()})`
+      : `Quote ${quote.quoteId} emailed to broker ${brokerEmail.trim()}`,
   })
 
   return res.status(200).json({
     success:   true,
     messageId: data?.id ?? null,
-    sentTo:    brokerEmail.trim(),
+    sentTo:    effectiveTo,
     quoteId:   quote.quoteId,
     subject,
   })
