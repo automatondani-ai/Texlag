@@ -24,6 +24,7 @@ const GROUPS = [
       { key: 'gasPricePerGallon',   label: 'Gas Price Per Gallon',             hint: 'Current market fuel price'                                },
       { key: 'mpg',                 label: 'Vehicle MPG (Miles Per Gallon)',   hint: 'Avg fuel efficiency for heavy freight — default 6 mpg', prefix: '' },
       { key: 'speedMph',           label: 'Average Speed (mph)',              hint: 'Used to auto-calculate trip days: miles ÷ speed ÷ 11 hrs — default 65', prefix: '' },
+      { key: 'driverAssistPerPallet', label: 'Driver Assist Fee (per pallet)', hint: 'Cost per pallet when driver assist is enabled — default $25.00' },
     ],
   },
 ]

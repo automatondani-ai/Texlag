@@ -18,6 +18,7 @@ const RATE_CATALOGUE = [
   { kv: 'gas_price_per_gallon',   client: 'gasPricePerGallon',    default: 3.85 },
   { kv: 'mpg',                    client: 'mpg',                  default: 6    },
   { kv: 'speed_mph',             client: 'speedMph',             default: 65   },
+  { kv: 'driver_assist_per_pallet', client: 'driverAssistPerPallet', default: 25.00 },
   // Legacy per-mile surcharges consumed by /api/quote
   { kv: 'cpm',                    client: 'cpm',                  default: 1.85 },
   { kv: 'gas_surcharge',          client: 'gasSurcharge',         default: 0.18 },

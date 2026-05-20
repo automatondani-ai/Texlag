@@ -47,10 +47,12 @@ export default function DriverQuoteForm() {
   // Driver
   const [driverMode,      setDriverMode]      = useState('solo')
 
+  // Pallets (always required)
+  const [numberOfPallets, setNumberOfPallets] = useState('')
+
   // Toggles
-  const [driverAssist,       setDriverAssist]       = useState(false)
-  const [driverAssistAmount, setDriverAssistAmount] = useState('')
-  const [detention,          setDetention]          = useState(false)
+  const [driverAssist, setDriverAssist] = useState(false)
+  const [detention,    setDetention]    = useState(false)
   const [detentionAmount,    setDetentionAmount]    = useState('')
   const [lowBackhaul,        setLowBackhaul]        = useState(false)
 
@@ -194,8 +196,10 @@ export default function DriverQuoteForm() {
     e.preventDefault()
     setError('')
     setQuote(null)
-    if (!pickup.trim())                  return setError('Enter a pickup location.')
-    if (dropoffs.some(d => !d.trim()))   return setError('Fill in all drop-off locations.')
+    if (!pickup.trim())                       return setError('Enter a pickup location.')
+    if (dropoffs.some(d => !d.trim()))        return setError('Fill in all drop-off locations.')
+    if (!numberOfPallets || Number(numberOfPallets) < 1)
+                                              return setError('Enter the number of pallets (minimum 1).')
 
     const token = getToken()
     if (!token) return setError('Session expired — please log in again.')
@@ -210,6 +214,7 @@ export default function DriverQuoteForm() {
           pickup:          pickup.trim(),
           dropoffs:        dropoffs.map(d => d.trim()),
           driverMode,
+          numberOfPallets: Number(numberOfPallets) || 0,
           trailerHoldDays: Number(trailerHoldDays) || 0,
           deadheadMiles:   Number(deadheadMiles)   || 0,
           toggles: {
@@ -221,8 +226,7 @@ export default function DriverQuoteForm() {
             lowBackhaul,
           },
           extras: {
-            driverAssistAmount: driverAssist ? Number(driverAssistAmount) || 0 : 0,
-            detentionAmount:    detention    ? Number(detentionAmount)    || 0 : 0,
+            detentionAmount: detention ? Number(detentionAmount) || 0 : 0,
           },
         }),
       })
@@ -299,11 +303,21 @@ export default function DriverQuoteForm() {
         {/* ── 3. Trip details ────────────────────────────────────────────── */}
         <div className="card">
           <p className="card__title">Trip Details</p>
-          <div className="field">
-            <label className="label">Trailer Hold Days</label>
-            <input className="input" type="number" min="0" step="1" placeholder="0"
-              value={trailerHoldDays} onChange={e => setTrailerHoldDays(e.target.value)} />
-            <span className="hint">Days trailer remains at drop-off facility</span>
+          <div className="trip-details-grid">
+            <div className="field">
+              <label className="label">
+                Number of Pallets <span className="req" aria-hidden="true">*</span>
+              </label>
+              <input className="input" type="number" min="1" step="1" placeholder="e.g. 12"
+                value={numberOfPallets} onChange={e => setNumberOfPallets(e.target.value)} />
+              <span className="hint">Required — used to calculate driver assist cost</span>
+            </div>
+            <div className="field">
+              <label className="label">Trailer Hold Days</label>
+              <input className="input" type="number" min="0" step="1" placeholder="0"
+                value={trailerHoldDays} onChange={e => setTrailerHoldDays(e.target.value)} />
+              <span className="hint">Days trailer remains at drop-off facility</span>
+            </div>
           </div>
         </div>
 
@@ -413,11 +427,9 @@ export default function DriverQuoteForm() {
               <span className="toggle-label">Driver Assist</span>
             </div>
             {driverAssist && (
-              <div className="input-prefix-wrap option-amount">
-                <span className="prefix">$</span>
-                <input className="input" type="number" min="0" step="0.01" placeholder="0.00"
-                  value={driverAssistAmount} onChange={e => setDriverAssistAmount(e.target.value)} />
-              </div>
+              <span style={{ fontSize: 11, color: 'var(--gray-400)', marginLeft: 8 }}>
+                {numberOfPallets ? `${numberOfPallets} pallet${Number(numberOfPallets) !== 1 ? 's' : ''} × admin rate` : 'set pallet count above'}
+              </span>
             )}
           </div>
 
@@ -528,19 +540,25 @@ function QuoteResultCard({
         </div>
       </div>
 
-      {/* Estimated trip duration — auto-calculated from speed variable */}
+      {/* Reference fields — trip duration and pallet count */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 8,
+        display: 'flex', flexWrap: 'wrap', gap: '6px 24px',
         padding: '8px 16px',
         background: 'var(--gray-50, #f8fafc)',
         borderBottom: '1px solid var(--gray-100)',
         fontSize: 12,
         color: 'var(--gray-600)',
       }}>
-        <span style={{ fontWeight: 600 }}>Estimated Trip Duration:</span>
-        <span>{quote.tripDays} day{quote.tripDays !== 1 ? 's' : ''}</span>
-        <span style={{ color: 'var(--gray-400)', fontSize: 11 }}>
-          (auto-calculated from {quote.totalMiles} mi ÷ {quote.ratesSnapshot?.speed ?? 65} mph ÷ 11 hrs)
+        <span>
+          <span style={{ fontWeight: 600 }}>Estimated Trip Duration: </span>
+          {quote.tripDays} day{quote.tripDays !== 1 ? 's' : ''}
+          <span style={{ color: 'var(--gray-400)', fontSize: 11, marginLeft: 4 }}>
+            ({quote.totalMiles} mi ÷ {quote.ratesSnapshot?.speed ?? 65} mph ÷ 11 hrs)
+          </span>
+        </span>
+        <span>
+          <span style={{ fontWeight: 600 }}>Pallets: </span>
+          {quote.numberOfPallets ?? 0}
         </span>
       </div>
 

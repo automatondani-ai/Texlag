@@ -298,8 +298,9 @@ function pdfLabel(label) {
 }
 
 function itemQty(item) {
-  if (item.days  != null) return `${item.days} day${item.days !== 1 ? 's' : ''}`
-  if (item.miles != null) return `${item.miles} mi`
+  if (item.days    != null) return `${item.days} day${item.days !== 1 ? 's' : ''}`
+  if (item.miles   != null) return `${item.miles} mi`
+  if (item.pallets != null) return `${item.pallets} pallet${item.pallets !== 1 ? 's' : ''}`
   return '—'
 }
 
@@ -361,6 +362,10 @@ export function buildDocument(quote, detentionHourlyRate = 75, logoSrc) {
         h(View, { style: s.infoCell },
           h(Text, { style: s.infoLabel }, 'Total Miles'),
           h(Text, { style: s.infoValue }, `${quote.totalMiles} mi`),
+        ),
+        h(View, { style: s.infoCell },
+          h(Text, { style: s.infoLabel }, 'Pallets'),
+          h(Text, { style: s.infoValue }, `${quote.numberOfPallets ?? 0}`),
         ),
       ),
 

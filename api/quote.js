@@ -48,6 +48,7 @@ const RATE_KEYS_AND_DEFAULTS = {
   gas_price_per_gallon:  3.85,
   mpg:                   6,
   speed_mph:            65,
+  driver_assist_per_pallet: 25.00,
 }
 
 async function loadRates() {
@@ -83,6 +84,7 @@ export default async function handler(req, res) {
     pickup,
     dropoffs,
     driverMode      = 'solo',
+    numberOfPallets = 0,
     trailerHoldDays = 0,
     deadheadMiles   = 0,
     toggles         = {},
@@ -112,8 +114,8 @@ export default async function handler(req, res) {
 
   // ── Normalise inputs ────────────────────────────────────────────────────────
   const { driverAssist = false, detention = false, lowBackhaul = false } = toggles
-  const driverAssistFee = driverAssist ? Math.max(0, Number(extras.driverAssistAmount) || 0) : 0
-  const detentionFee    = detention    ? Math.max(0, Number(extras.detentionAmount)    || 0) : 0
+  const numPallets      = Math.max(0, Number(numberOfPallets) || 0)
+  const detentionFee    = detention ? Math.max(0, Number(extras.detentionAmount) || 0) : 0
   const numHoldDays     = Math.max(0, Number(trailerHoldDays) || 0)
   const numDeadhead     = Math.max(0, Number(deadheadMiles)   || 0)
 
@@ -145,9 +147,11 @@ export default async function handler(req, res) {
     ? rates.interstate_truck_rate
     : rates.intrastate_truck_rate
   const insuranceRate = rates.insurance_rate
-  const holdRate      = rates.trailer_hold_rate
-  const gasRate       = rates.gas_price_per_gallon
-  const mpg           = Math.max(0.1, Number(rates.mpg) || 6)   // guard against zero
+  const holdRate           = rates.trailer_hold_rate
+  const gasRate            = rates.gas_price_per_gallon
+  const mpg                = Math.max(0.1, Number(rates.mpg) || 6)   // guard against zero
+  const driverAssistRate   = Math.max(0, Number(rates.driver_assist_per_pallet) || 25)
+  const driverAssistFee    = driverAssist ? r2(numPallets * driverAssistRate) : 0
 
   // Team loads: client CPM doubled; internal always single-driver basis
   const clientCpm   = driverMode === 'team' ? r2(baseCpm * 2) : baseCpm
@@ -263,7 +267,8 @@ export default async function handler(req, res) {
 
     // ── Options ───────────────────────────────────────────────────────────────
     driverMode,
-    tripDays:   numTripDays,
+    tripDays:       numTripDays,
+    numberOfPallets: numPallets,
     toggles: { driverAssist, detention, lowBackhaul },
 
     // ── Line items ────────────────────────────────────────────────────────────
@@ -302,8 +307,9 @@ export default async function handler(req, res) {
         amount: deadheadCharge,
       } : null,
       driverAssistFee: driverAssist ? {
-        label:  'Driver assist fee',
-        amount: driverAssistFee,
+        label:   `Driver assist (${numPallets} pallet${numPallets !== 1 ? 's' : ''} × $${driverAssistRate}/pallet)`,
+        pallets: numPallets,
+        amount:  driverAssistFee,
       } : null,
       gasSurcharge: {
         label:  `Fuel surcharge (${r2(totalMiles)} mi ÷ ${mpg} mpg × $${gasRate}/gal)`,
@@ -344,6 +350,7 @@ export default async function handler(req, res) {
       gasRate,
       mpg,
       speed,
+      driverAssistRate,
     },
   })
 }
