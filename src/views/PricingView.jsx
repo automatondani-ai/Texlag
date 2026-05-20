@@ -5,23 +5,26 @@ const GROUPS = [
   {
     title: 'Interstate',
     fields: [
-      { key: 'interstateCpm',       label: 'Driver CPM',   hint: 'Internal driver cost per mile — interstate loads. Used only for driver payout calculation.'   },
-      { key: 'interstateBrokerCpm', label: 'Broker CPM',   hint: 'Marked-up CPM charged to the broker — interstate loads. Used for the broker-facing quote total.' },
-      { key: 'interstateTruckRate', label: 'Truck Rate',   hint: 'Per-day truck charge billed on the broker quote'  },
+      { key: 'interstateCpm',           label: 'Driver CPM',       hint: 'Internal driver cost per mile — interstate loads. Used only for driver payout calculation.'   },
+      { key: 'interstateBrokerCpm',     label: 'Broker CPM',       hint: 'Marked-up CPM charged to the broker — interstate loads. Used for the broker-facing quote total.' },
+      { key: 'interstateTruckRate',     label: 'Truck Rate',       hint: 'Per-day truck charge billed on the broker quote'  },
+      { key: 'interstateInsuranceRate', label: 'Insurance Rate',   hint: 'Per-day insurance charge — interstate loads'      },
+      { key: 'interstateHazmatRate',    label: 'Hazmat Rate',      hint: 'Per-day hazmat surcharge — interstate loads (applied when Hazmat toggle is on)' },
     ],
   },
   {
     title: 'Intrastate',
     fields: [
-      { key: 'intrastateCpm',       label: 'Driver CPM',   hint: 'Internal driver cost per mile — intrastate loads. Used only for driver payout calculation.'   },
-      { key: 'intrastateBrokerCpm', label: 'Broker CPM',   hint: 'Marked-up CPM charged to the broker — intrastate loads. Used for the broker-facing quote total.' },
-      { key: 'intrastateTruckRate', label: 'Truck Rate',   hint: 'Per-day truck charge billed on the broker quote'  },
+      { key: 'intrastateCpm',           label: 'Driver CPM',       hint: 'Internal driver cost per mile — intrastate loads. Used only for driver payout calculation.'   },
+      { key: 'intrastateBrokerCpm',     label: 'Broker CPM',       hint: 'Marked-up CPM charged to the broker — intrastate loads. Used for the broker-facing quote total.' },
+      { key: 'intrastateTruckRate',     label: 'Truck Rate',       hint: 'Per-day truck charge billed on the broker quote'  },
+      { key: 'intrastateInsuranceRate', label: 'Insurance Rate',   hint: 'Per-day insurance charge — intrastate loads'      },
+      { key: 'intrastateHazmatRate',    label: 'Hazmat Rate',      hint: 'Per-day hazmat surcharge — intrastate loads (applied when Hazmat toggle is on)' },
     ],
   },
   {
     title: 'Operating Costs',
     fields: [
-      { key: 'insuranceRate',       label: 'Insurance Rate',                   hint: 'Per-mile insurance surcharge'                             },
       { key: 'trailerHoldRate',     label: 'Trailer Hold Rate',                hint: 'Per-day trailer detention fee ($)'                        },
       { key: 'gasPricePerGallon',   label: 'Gas Price Per Gallon',             hint: 'Current market fuel price'                                },
       { key: 'mpg',                 label: 'Vehicle MPG (Miles Per Gallon)',   hint: 'Avg fuel efficiency for heavy freight — default 6 mpg', prefix: '' },

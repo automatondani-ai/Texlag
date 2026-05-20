@@ -39,18 +39,21 @@ async function totalRoadMiles(pickup, dropoffs, apiKey) {
 // ── Rate loader ─────────────────────────────────────────────────────────────
 
 const RATE_KEYS_AND_DEFAULTS = {
-  interstate_cpm:           2.50,
-  interstate_broker_cpm:    3.50,
-  intrastate_cpm:           2.00,
-  intrastate_broker_cpm:    2.75,
-  interstate_truck_rate:    3.50,
-  intrastate_truck_rate:    3.00,
-  insurance_rate:           0.15,
-  trailer_hold_rate:       75.00,
-  gas_price_per_gallon:     3.85,
-  mpg:                      6,
-  speed_mph:               65,
-  driver_assist_per_pallet: 25.00,
+  interstate_cpm:                2.50,
+  interstate_broker_cpm:         3.50,
+  intrastate_cpm:                2.00,
+  intrastate_broker_cpm:         2.75,
+  interstate_truck_rate:         3.50,
+  intrastate_truck_rate:         3.00,
+  interstate_insurance_rate:     0.15,
+  intrastate_insurance_rate:     0.15,
+  interstate_hazmat_rate:        0.25,
+  intrastate_hazmat_rate:        0.25,
+  trailer_hold_rate:            75.00,
+  gas_price_per_gallon:          3.85,
+  mpg:                           6,
+  speed_mph:                    65,
+  driver_assist_per_pallet:     25.00,
 }
 
 async function loadRates() {
@@ -115,7 +118,7 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(500).json({ error: 'GOOGLE_MAPS_API_KEY is not configured' })
 
   // ── Normalise inputs ────────────────────────────────────────────────────────
-  const { driverAssist = false, detention = false, lowBackhaul = false, partialBackhaul = false } = toggles
+  const { driverAssist = false, detention = false, lowBackhaul = false, partialBackhaul = false, hazmat = false } = toggles
   const numPallets      = Math.max(0, Number(numberOfPallets) || 0)
   const detentionFee    = detention ? Math.max(0, Number(extras.detentionAmount) || 0) : 0
   const numHoldDays     = Math.max(0, Number(trailerHoldDays) || 0)
@@ -151,7 +154,12 @@ export default async function handler(req, res) {
   const truckRate      = jurisdiction === 'interstate'
     ? rates.interstate_truck_rate
     : rates.intrastate_truck_rate
-  const insuranceRate      = rates.insurance_rate
+  const insuranceRate  = jurisdiction === 'interstate'
+    ? rates.interstate_insurance_rate
+    : rates.intrastate_insurance_rate
+  const hazmatRate     = jurisdiction === 'interstate'
+    ? rates.interstate_hazmat_rate
+    : rates.intrastate_hazmat_rate
   const holdRate           = rates.trailer_hold_rate
   const gasRate            = rates.gas_price_per_gallon
   const mpg                = Math.max(0.1, Number(rates.mpg) || 6)   // guard against zero
@@ -167,6 +175,7 @@ export default async function handler(req, res) {
   // Core Subtotal = (Total Miles      × Broker CPM)
   //              + (Trip Days         × Truck Rate)
   //              + (Trip Days         × Insurance Rate)
+  //              + (Trip Days         × Hazmat Rate)   [if hazmat toggle]
   //              + (Trailer Hold Days × Hold Rate)
   //              + (Deadhead Miles    × Broker CPM)
   //              + Driver Assist Fee
@@ -176,6 +185,7 @@ export default async function handler(req, res) {
   const cpmMileage      = r2(totalMiles * brokerCpm)
   const truckCharge     = r2(numTripDays * truckRate)
   const insuranceCharge = r2(numTripDays * insuranceRate)
+  const hazmatCharge    = hazmat ? r2(numTripDays * hazmatRate) : 0
   const holdCharge      = r2(numHoldDays * holdRate)
   const deadheadCharge  = r2(numDeadhead * brokerCpm)
   const gasSurcharge    = r2((totalMiles / mpg) * gasRate)
@@ -184,6 +194,7 @@ export default async function handler(req, res) {
     cpmMileage +
     truckCharge +
     insuranceCharge +
+    hazmatCharge +
     holdCharge +
     deadheadCharge +
     driverAssistFee
@@ -256,7 +267,7 @@ export default async function handler(req, res) {
     driverMode,
     tripDays:        numTripDays,
     numberOfPallets: numPallets,
-    toggles: { driverAssist, detention, lowBackhaul, partialBackhaul },
+    toggles: { driverAssist, detention, lowBackhaul, partialBackhaul, hazmat },
 
     // ── Line items ───────────────────────────────────────────────────────────
     // null entries are omitted by JSON serialisation
@@ -280,6 +291,12 @@ export default async function handler(req, res) {
         days:   numTripDays,
         amount: insuranceCharge,
       },
+      hazmatCharge: hazmat ? {
+        label:  `Hazmat ($${hazmatRate}/day × ${numTripDays} day${numTripDays !== 1 ? 's' : ''})`,
+        rate:   hazmatRate,
+        days:   numTripDays,
+        amount: hazmatCharge,
+      } : null,
       holdCharge: numHoldDays > 0 ? {
         label:  `Trailer hold ($${holdRate}/day × ${numHoldDays} day${numHoldDays !== 1 ? 's' : ''})`,
         rate:   holdRate,
@@ -305,8 +322,8 @@ export default async function handler(req, res) {
       },
       backhaulSurcharge: lowBackhaul ? {
         label:  partialBackhaul
-          ? `Low/No Backhaul surcharge — Partial 50% (${r2(totalMiles)} mi ÷ ${mpg} mpg × $${gasRate}/gal ÷ 2)`
-          : `Low/No Backhaul surcharge (additional fuel — ${r2(totalMiles)} mi ÷ ${mpg} mpg × $${gasRate}/gal)`,
+          ? 'Backhaul Surcharge — Partial (50%)'
+          : 'Backhaul Surcharge',
         rate:   gasRate,
         miles:  r2(totalMiles),
         amount: backhaulGas,
@@ -338,6 +355,7 @@ export default async function handler(req, res) {
       driverCpm,
       truckRate,
       insuranceRate,
+      hazmatRate,
       holdRate,
       gasRate,
       mpg,

@@ -56,6 +56,7 @@ export default function DriverQuoteForm() {
   const [detentionAmount, setDetentionAmount] = useState('')
   const [lowBackhaul,     setLowBackhaul]     = useState(false)
   const [partialBackhaul, setPartialBackhaul] = useState(false)
+  const [hazmat,          setHazmat]          = useState(false)
 
   // Quote output
   const [quoting,    setQuoting]    = useState(false)
@@ -219,7 +220,7 @@ export default function DriverQuoteForm() {
           trailerHoldDays: Number(trailerHoldDays) || 0,
           deadheadMiles:   Number(deadheadMiles)   || 0,
           toggles: {
-            hazmat:       false,
+            hazmat,
             tanker:       false,
             tolls:        false,
             driverAssist,
@@ -459,6 +460,17 @@ export default function DriverQuoteForm() {
 
           <div className="option-divider" />
 
+          {/* Hazmat */}
+          <div className="option-row">
+            <div
+              className={`toggle-chip${hazmat ? ' toggle-chip--on' : ''}`}
+              onClick={() => setHazmat(v => !v)}
+            >
+              <div className="switch"><div className="switch__knob" /></div>
+              <span className="toggle-label">Hazmat</span>
+            </div>
+          </div>
+
           {/* Low/No Backhaul */}
           <div className="option-row">
             <div
@@ -543,11 +555,29 @@ function QuoteResultCard({
 }) {
   const activeItems = Object.entries(quote.lineItems ?? {}).filter(([, v]) => v !== null)
 
-  // Secondary descriptor shown under the label: rate/mi or rate/day
+  const SCREEN_LABEL_RENAME = {
+    'Route Miles — Solo CPM':         'Route Miles',
+    'Route Miles — Team CPM':         'Route Miles',
+    'Truck rate':                     'Truck Rate',
+    'Driver assist':                  'Driver Assist',
+    'Trailer hold':                   'Trailer Hold',
+    'Deadhead CPM':                   'Deadhead',
+    'Fuel surcharge':                 'Gas',
+    'Detention fee':                  'Detention Fee',
+    'Backhaul Surcharge':             'Backhaul Surcharge',
+    'Backhaul Surcharge — Partial':   'Backhaul Surcharge (Partial 50%)',
+  }
+  function screenLabel(label) {
+    const stripped = (label ?? '').replace(/\s*\(.*/, '').trim()
+    return SCREEN_LABEL_RENAME[stripped] ?? stripped
+  }
+
+  // Secondary descriptor shown under the label: days / miles / pallets
   function itemMeta(item) {
-    if (item.days  != null) return `${item.days} day${item.days !== 1 ? 's' : ''}`
-    if (item.miles != null) return `${item.miles} mi`
-    return null
+    if (item.days    != null) return `${item.days} day${item.days !== 1 ? 's' : ''}`
+    if (item.miles   != null) return `${item.miles} mi`
+    if (item.pallets != null) return `${item.pallets} pallet${item.pallets !== 1 ? 's' : ''}`
+    return '—'
   }
 
   return (
@@ -605,21 +635,14 @@ function QuoteResultCard({
             {activeItems.map(([key, item]) => (
               <tr key={key}>
                 <td>
-                  <div className="item-label">{item.label}</div>
+                  <div className="item-label">{screenLabel(item.label)}</div>
                 </td>
                 <td style={{ textAlign: 'right', color: 'var(--gray-400)', fontSize: 12 }}>
-                  {itemMeta(item) ?? '—'}
+                  {itemMeta(item)}
                 </td>
                 <td style={{ textAlign: 'right' }}>{fmt(item.amount)}</td>
               </tr>
             ))}
-
-            <tr className="line-items__divider"><td colSpan={3} /></tr>
-
-            <tr className="line-items__subtotal">
-              <td colSpan={2}>Core subtotal</td>
-              <td style={{ textAlign: 'right' }}>{fmt(quote.coreSubtotal)}</td>
-            </tr>
 
             <tr className="line-items__total">
               <td colSpan={2}>
