@@ -476,11 +476,7 @@ export default function DriverQuoteForm() {
 
           {/* Partial Backhaul — sub-toggle, only visible when Low/No Backhaul is ON */}
           {lowBackhaul && (
-            <div style={{
-              marginLeft: 20, marginTop: 10,
-              paddingLeft: 14,
-              borderLeft: '2px solid var(--gray-200)',
-            }}>
+            <div className="backhaul-sub-toggle">
               <div className="option-row">
                 <div
                   className={`toggle-chip${partialBackhaul ? ' toggle-chip--on' : ''}`}

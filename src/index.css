@@ -1526,6 +1526,14 @@ body {
   margin: 0;
 }
 
+/* Sub-toggle indented under Low/No Backhaul */
+.backhaul-sub-toggle {
+  margin-left: 20px;
+  margin-top: 10px;
+  padding-left: 14px;
+  border-left: 2px solid var(--gray-200);
+}
+
 /* Detention compliance text */
 .detention-compliance {
   font-size: 11px;
@@ -1538,12 +1546,13 @@ body {
   margin-top: 8px;
 }
 
-/* Operational notes panel */
+/* Operational notes panel — padding is 0 so header/list control their own spacing */
 .notes-panel {
   background: var(--gray-50);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  padding: 0;
 }
 
 .notes-panel__header {
@@ -1785,9 +1794,38 @@ body {
   .mode-toggle { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
   .mode-btn    { text-align: center; }
 
-  /* Toggle chips — allow labels to wrap */
-  .option-row   { flex-wrap: wrap; }
-  .toggle-label { white-space: normal; }
+  /* ── Load Options section (issues 1–4) ──────────────────────────────────── */
+
+  /* 4. All toggle chips fill the full row width so nothing overflows */
+  .option-row            { flex-wrap: wrap; align-items: flex-start; }
+  .option-row .toggle-chip { flex: 1 1 auto; width: 100%; min-width: 0; }
+  .toggle-label          { white-space: normal; }
+
+  /* 1. Detention amount — becomes its own full-width row when wrapped */
+  .option-amount {
+    width: 100%;
+    margin-left: 0;
+    margin-top: 4px;
+  }
+  .option-amount .input { width: 100%; }
+
+  /* 2. Partial Backhaul sub-toggle — tighter indent, chip fills container */
+  .backhaul-sub-toggle {
+    margin-left: 16px;
+    padding-left: 12px;
+    margin-right: 0;
+  }
+
+  /* 3. Notes panel — ensure 16px horizontal padding; overflow-y scroll still works */
+  .notes-panel          { padding: 0; }
+  .notes-panel__header  { padding: 10px 16px; }
+  .notes-list           {
+    padding: 12px 16px;
+    max-height: 180px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .notes-list__item     { padding-left: 14px; }
 
   /* Quote result header */
   .quote-result__header {
@@ -1816,13 +1854,6 @@ body {
   .broker-send-form .btn {
     width: 100%;
     justify-content: center;
-  }
-
-  /* Operational notes — cap height so it doesn't push content off screen */
-  .notes-list {
-    max-height: 180px;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
   }
 
   /* View page */
