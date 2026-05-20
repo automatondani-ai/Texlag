@@ -33,6 +33,32 @@ const REQUIRED   = ['quoteId', 'pickup', 'dropoffs', 'lineItems', 'finalQuote']
 const EMAIL_RE   = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const RESEND_TIMEOUT_MS = 25_000
 
+// ── PDF filename helper ───────────────────────────────────────────────────────
+// Builds a descriptive filename from the quote's resolved location strings.
+// Google Maps returns addresses like "Houston, TX, USA" — city is the first
+// comma-delimited segment.  Non-alphanumeric chars are stripped and spaces
+// replaced with hyphens so the filename is safe across all OS/browsers.
+// Falls back to plain quoteId if city names cannot be extracted.
+function extractCity(address) {
+  if (!address || typeof address !== 'string') return null
+  const city = address.split(',')[0].trim()
+  return city.length > 0 ? city : null
+}
+
+function pdfFilename(quote) {
+  const fromCity = extractCity(quote.pickup)
+  const toCity   = extractCity(
+    Array.isArray(quote.dropoffs) && quote.dropoffs.length > 0
+      ? quote.dropoffs[quote.dropoffs.length - 1]
+      : null
+  )
+  if (fromCity && toCity) {
+    const safe = s => s.replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/\s+/g, '-')
+    return `TexLag-Quote-${safe(fromCity)}-to-${safe(toCity)}-${quote.quoteId}.pdf`
+  }
+  return `TexLag-Quote-${quote.quoteId}.pdf`
+}
+
 /**
  * Races `promise` against a hard timeout.
  * Rejects with a clear message if the timeout fires first.
@@ -217,7 +243,7 @@ async function handleGeneratePdf(req, res) {
   }
 
   // ── 4. Stream the PDF back ───────────────────────────────────────────────
-  const filename = `TexLag-Quote-${quote.quoteId}.pdf`
+  const filename = pdfFilename(quote)
   console.log(tag, 'sending PDF — filename:', filename, '— bytes:', buffer.length)
   res.setHeader('Content-Type',        'application/pdf')
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
@@ -283,7 +309,7 @@ async function handleSendQuote(req, res, caller) {
   // ── 4. Send email ────────────────────────────────────────────────────────
   const driverName = `${caller.firstName ?? ''} ${caller.lastName ?? ''}`.trim()
   const subject    = `Freight Quote — TexLag Express — ${quote.quoteId}`
-  const filename   = `TexLag-Quote-${quote.quoteId}.pdf`
+  const filename   = pdfFilename(quote)
 
   // TEST MODE: if RESEND_TEST_EMAIL is set, redirect all outbound mail to that
   // address regardless of what the driver entered.  Useful when the sending

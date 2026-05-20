@@ -111,6 +111,26 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
     }
   }
 
+  // Build descriptive PDF filename matching the server-side pdfFilename() helper.
+  function quoteFilename(q) {
+    const extractCity = addr => {
+      if (!addr || typeof addr !== 'string') return null
+      const city = addr.split(',')[0].trim()
+      return city.length > 0 ? city : null
+    }
+    const fromCity = extractCity(q.pickup)
+    const toCity   = extractCity(
+      Array.isArray(q.dropoffs) && q.dropoffs.length > 0
+        ? q.dropoffs[q.dropoffs.length - 1]
+        : null
+    )
+    if (fromCity && toCity) {
+      const safe = s => s.replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/\s+/g, '-')
+      return `TexLag-Quote-${safe(fromCity)}-to-${safe(toCity)}-${q.quoteId}.pdf`
+    }
+    return `TexLag-Quote-${q.quoteId}.pdf`
+  }
+
   async function downloadQuotePDF(q) {
     setPdfError('')
     setPdfDownloading(s => new Set(s).add(q.quoteId))
@@ -128,7 +148,7 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
       a.href     = url
-      a.download = `TexLag-Quote-${q.quoteId}.pdf`
+      a.download = quoteFilename(q)
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)

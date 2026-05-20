@@ -134,6 +134,33 @@ export default function DriverQuoteForm() {
   }
 
   // ── Download PDF via POST /api/generate-pdf ───────────────────────────────
+
+  // Extract the city portion from a full address string returned by Google Maps.
+  // e.g. "Houston, TX, USA" → "Houston"  |  "Dallas, TX" → "Dallas"
+  // Returns null if the string is empty or has no comma.
+  function extractCity(address) {
+    if (!address || typeof address !== 'string') return null
+    const city = address.split(',')[0].trim()
+    return city.length > 0 ? city : null
+  }
+
+  // Build the descriptive PDF filename from the quote's resolved location data.
+  // Falls back to plain quoteId-only name if city names cannot be extracted.
+  function pdfFilename(q) {
+    const fromCity = extractCity(q.pickup)
+    const toCity   = extractCity(
+      Array.isArray(q.dropoffs) && q.dropoffs.length > 0
+        ? q.dropoffs[q.dropoffs.length - 1]
+        : null
+    )
+    if (fromCity && toCity) {
+      // Sanitise: replace spaces/slashes with hyphens, strip non-alphanumeric chars
+      const safe = s => s.replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/\s+/g, '-')
+      return `TexLag-Quote-${safe(fromCity)}-to-${safe(toCity)}-${q.quoteId}.pdf`
+    }
+    return `TexLag-Quote-${q.quoteId}.pdf`
+  }
+
   async function downloadPDF() {
     if (!quote) return
     setPdfLoading(true)
@@ -153,7 +180,7 @@ export default function DriverQuoteForm() {
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
       a.href     = url
-      a.download = `TexLag-Quote-${quote.quoteId}.pdf`
+      a.download = pdfFilename(quote)
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -667,7 +694,12 @@ function QuoteResultCard({
         </p>
 
         <div className="internal-row">
-          <span className="internal-row__label">Internal Driver Cost (single-driver payable)</span>
+          <span className="internal-row__label">
+            Internal Driver Cost (single-driver payable)
+            <span className="internal-row__desc">
+              Based on ${quote.ratesSnapshot?.driverCpm ?? quote.ratesSnapshot?.driverBaseCpm ?? '—'}/mi CPM and applicable load charges.
+            </span>
+          </span>
           <span className="internal-row__value">{fmt(quote.internalDriverCost)}</span>
         </div>
 

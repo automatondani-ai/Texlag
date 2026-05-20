@@ -601,11 +601,15 @@ body {
   border-radius: var(--radius);
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 12px;
   border: 1px solid var(--gray-100);
 }
 
 .internal-row__label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -613,10 +617,19 @@ body {
   color: var(--gray-400);
 }
 
+.internal-row__desc {
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--gray-400);
+}
+
 .internal-row__value {
   font-size: 14px;
   font-weight: 600;
   color: var(--gray-600);
+  flex-shrink: 0;
 }
 
 /* ── ADMIN ───────────────────────────────────────────────────────────────── */
