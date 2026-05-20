@@ -51,10 +51,11 @@ export default function DriverQuoteForm() {
   const [numberOfPallets, setNumberOfPallets] = useState('')
 
   // Toggles
-  const [driverAssist, setDriverAssist] = useState(false)
-  const [detention,    setDetention]    = useState(false)
-  const [detentionAmount,    setDetentionAmount]    = useState('')
-  const [lowBackhaul,        setLowBackhaul]        = useState(false)
+  const [driverAssist,    setDriverAssist]    = useState(false)
+  const [detention,       setDetention]       = useState(false)
+  const [detentionAmount, setDetentionAmount] = useState('')
+  const [lowBackhaul,     setLowBackhaul]     = useState(false)
+  const [partialBackhaul, setPartialBackhaul] = useState(false)
 
   // Quote output
   const [quoting,    setQuoting]    = useState(false)
@@ -224,6 +225,7 @@ export default function DriverQuoteForm() {
             driverAssist,
             detention,
             lowBackhaul,
+            partialBackhaul: lowBackhaul ? partialBackhaul : false,
           },
           extras: {
             detentionAmount: detention ? Number(detentionAmount) || 0 : 0,
@@ -461,12 +463,40 @@ export default function DriverQuoteForm() {
           <div className="option-row">
             <div
               className={`toggle-chip${lowBackhaul ? ' toggle-chip--on' : ''}`}
-              onClick={() => setLowBackhaul(v => !v)}
+              onClick={() => {
+                const next = !lowBackhaul
+                setLowBackhaul(next)
+                if (!next) setPartialBackhaul(false)   // reset child when parent turns off
+              }}
             >
               <div className="switch"><div className="switch__knob" /></div>
               <span className="toggle-label">Low / No Backhaul</span>
             </div>
           </div>
+
+          {/* Partial Backhaul — sub-toggle, only visible when Low/No Backhaul is ON */}
+          {lowBackhaul && (
+            <div style={{
+              marginLeft: 20, marginTop: 10,
+              paddingLeft: 14,
+              borderLeft: '2px solid var(--gray-200)',
+            }}>
+              <div className="option-row">
+                <div
+                  className={`toggle-chip${partialBackhaul ? ' toggle-chip--on' : ''}`}
+                  onClick={() => setPartialBackhaul(v => !v)}
+                >
+                  <div className="switch"><div className="switch__knob" /></div>
+                  <span className="toggle-label">
+                    Partial Backhaul
+                    <span style={{ fontWeight: 400, color: 'var(--gray-400)', fontSize: 11, marginLeft: 6 }}>
+                      Split fuel cost with client (50%)
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── 7. Operational notes ───────────────────────────────────────── */}
@@ -560,6 +590,12 @@ function QuoteResultCard({
           <span style={{ fontWeight: 600 }}>Pallets: </span>
           {quote.numberOfPallets ?? 0}
         </span>
+        {quote.toggles?.lowBackhaul && (
+          <span>
+            <span style={{ fontWeight: 600 }}>Backhaul: </span>
+            {quote.toggles?.partialBackhaul ? 'Partial (50%)' : 'Full surcharge'}
+          </span>
+        )}
       </div>
 
       <div className="quote-result__body">

@@ -113,7 +113,7 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(500).json({ error: 'GOOGLE_MAPS_API_KEY is not configured' })
 
   // ── Normalise inputs ────────────────────────────────────────────────────────
-  const { driverAssist = false, detention = false, lowBackhaul = false } = toggles
+  const { driverAssist = false, detention = false, lowBackhaul = false, partialBackhaul = false } = toggles
   const numPallets      = Math.max(0, Number(numberOfPallets) || 0)
   const detentionFee    = detention ? Math.max(0, Number(extras.detentionAmount) || 0) : 0
   const numHoldDays     = Math.max(0, Number(trailerHoldDays) || 0)
@@ -188,7 +188,10 @@ export default async function handler(req, res) {
     driverAssistFee
   )
 
-  const backhaulGas  = lowBackhaul ? gasSurcharge : 0   // second gas charge if ON
+  // Backhaul surcharge: full gas again (default) or half gas (partial)
+  const backhaulGas  = lowBackhaul
+    ? (partialBackhaul ? r2(gasSurcharge / 2) : gasSurcharge)
+    : 0
   const finalQuote   = r2(coreSubtotal + gasSurcharge + detentionFee + backhaulGas)
 
   // Internal: same structure but always single-driver CPM, no client markups
@@ -249,7 +252,7 @@ export default async function handler(req, res) {
     driverMode,
     tripDays:        numTripDays,
     numberOfPallets: numPallets,
-    toggles: { driverAssist, detention, lowBackhaul },
+    toggles: { driverAssist, detention, lowBackhaul, partialBackhaul },
 
     // ── Line items ───────────────────────────────────────────────────────────
     // null entries are omitted by JSON serialisation
@@ -298,10 +301,12 @@ export default async function handler(req, res) {
         amount: gasSurcharge,
       },
       backhaulSurcharge: lowBackhaul ? {
-        label:  `Low/No Backhaul surcharge (additional fuel — ${r2(totalMiles)} mi ÷ ${mpg} mpg × $${gasRate}/gal)`,
+        label:  partialBackhaul
+          ? `Low/No Backhaul surcharge — Partial 50% (${r2(totalMiles)} mi ÷ ${mpg} mpg × $${gasRate}/gal ÷ 2)`
+          : `Low/No Backhaul surcharge (additional fuel — ${r2(totalMiles)} mi ÷ ${mpg} mpg × $${gasRate}/gal)`,
         rate:   gasRate,
         miles:  r2(totalMiles),
-        amount: gasSurcharge,   // same value, applied a second time
+        amount: backhaulGas,
       } : null,
       detentionFee: detention ? {
         label:  'Detention fee',
