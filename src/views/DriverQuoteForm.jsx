@@ -428,34 +428,34 @@ export default function DriverQuoteForm() {
               <div className="switch"><div className="switch__knob" /></div>
               <span className="toggle-label">Driver Assist</span>
             </div>
-            {driverAssist && (
-              <span style={{ fontSize: 11, color: 'var(--gray-400)', marginLeft: 8 }}>
-                {numberOfPallets ? `${numberOfPallets} pallet${Number(numberOfPallets) !== 1 ? 's' : ''} × admin rate` : 'set pallet count above'}
-              </span>
-            )}
           </div>
+          {driverAssist && (
+            <p className="option-sub-hint">
+              {numberOfPallets
+                ? `${numberOfPallets} pallet${Number(numberOfPallets) !== 1 ? 's' : ''} × admin rate`
+                : 'Set pallet count above'}
+            </p>
+          )}
 
           <div className="option-divider" />
 
           {/* Detention */}
-          <div className="option-col">
-            <div className="option-row">
-              <div
-                className={`toggle-chip${detention ? ' toggle-chip--on' : ''}`}
-                onClick={() => setDetention(v => !v)}
-              >
-                <div className="switch"><div className="switch__knob" /></div>
-                <span className="toggle-label">Detention</span>
-              </div>
-              {detention && (
-                <div className="input-prefix-wrap option-amount">
-                  <span className="prefix">$</span>
-                  <input className="input" type="number" min="0" step="0.01" placeholder="0.00"
-                    value={detentionAmount} onChange={e => setDetentionAmount(e.target.value)} />
-                </div>
-              )}
+          <div className="option-row">
+            <div
+              className={`toggle-chip${detention ? ' toggle-chip--on' : ''}`}
+              onClick={() => setDetention(v => !v)}
+            >
+              <div className="switch"><div className="switch__knob" /></div>
+              <span className="toggle-label">Detention</span>
             </div>
           </div>
+          {detention && (
+            <div className="input-prefix-wrap option-sub-field">
+              <span className="prefix">$</span>
+              <input className="input" type="number" min="0" step="0.01" placeholder="0.00"
+                value={detentionAmount} onChange={e => setDetentionAmount(e.target.value)} />
+            </div>
+          )}
 
           <div className="option-divider" />
 
@@ -474,22 +474,20 @@ export default function DriverQuoteForm() {
             </div>
           </div>
 
-          {/* Partial Backhaul — sub-toggle, only visible when Low/No Backhaul is ON */}
+          {/* Partial Backhaul — flush with all other rows, no indentation */}
           {lowBackhaul && (
-            <div className="backhaul-sub-toggle">
-              <div className="option-row">
-                <div
-                  className={`toggle-chip${partialBackhaul ? ' toggle-chip--on' : ''}`}
-                  onClick={() => setPartialBackhaul(v => !v)}
-                >
-                  <div className="switch"><div className="switch__knob" /></div>
-                  <span className="toggle-label">
-                    Partial Backhaul
-                    <span style={{ fontWeight: 400, color: 'var(--gray-400)', fontSize: 11, marginLeft: 6 }}>
-                      Split fuel cost with client (50%)
-                    </span>
+            <div className="option-row">
+              <div
+                className={`toggle-chip${partialBackhaul ? ' toggle-chip--on' : ''}`}
+                onClick={() => setPartialBackhaul(v => !v)}
+              >
+                <div className="switch"><div className="switch__knob" /></div>
+                <span className="toggle-label">
+                  Partial Backhaul
+                  <span style={{ fontWeight: 400, color: 'var(--gray-400)', fontSize: 11, marginLeft: 6 }}>
+                    Split fuel cost with client (50%)
                   </span>
-                </div>
+                </span>
               </div>
             </div>
           )}

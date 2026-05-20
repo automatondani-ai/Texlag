@@ -1493,31 +1493,17 @@ body {
   padding: 12px 0;
 }
 
-.option-col {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+/* Conditional content rendered below a toggle row — full width, no indent */
+.option-sub-field {
+  margin-top: 8px;
+  margin-bottom: 4px;
 }
 
-.option-col label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--gray-700);
-  cursor: pointer;
-  user-select: none;
-}
-
-.option-amount {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.option-amount .form-input {
-  width: 110px;
-  text-align: right;
+.option-sub-hint {
+  font-size: 11px;
+  color: var(--gray-400);
+  margin-top: 4px;
+  margin-bottom: 4px;
 }
 
 .option-divider {
@@ -1526,13 +1512,6 @@ body {
   margin: 0;
 }
 
-/* Sub-toggle indented under Low/No Backhaul */
-.backhaul-sub-toggle {
-  margin-left: 20px;
-  margin-top: 10px;
-  padding-left: 14px;
-  border-left: 2px solid var(--gray-200);
-}
 
 /* Detention compliance text */
 .detention-compliance {
@@ -1794,29 +1773,17 @@ body {
   .mode-toggle { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
   .mode-btn    { text-align: center; }
 
-  /* ── Load Options section (issues 1–4) ──────────────────────────────────── */
+  /* ── Load Options section ────────────────────────────────────────────────── */
 
-  /* 4. All toggle chips fill the full row width so nothing overflows */
-  .option-row            { flex-wrap: wrap; align-items: flex-start; }
+  /* Toggle chips fill the full row width; labels may wrap on narrow screens */
   .option-row .toggle-chip { flex: 1 1 auto; width: 100%; min-width: 0; }
-  .toggle-label          { white-space: normal; }
+  .toggle-label            { white-space: normal; }
 
-  /* 1. Detention amount — becomes its own full-width row when wrapped */
-  .option-amount {
-    width: 100%;
-    margin-left: 0;
-    margin-top: 4px;
-  }
-  .option-amount .input { width: 100%; }
+  /* Conditional sub-fields (detention amount, driver assist hint) — full width */
+  .option-sub-field { width: 100%; }
+  .option-sub-field .input { width: 100%; }
 
-  /* 2. Partial Backhaul sub-toggle — tighter indent, chip fills container */
-  .backhaul-sub-toggle {
-    margin-left: 16px;
-    padding-left: 12px;
-    margin-right: 0;
-  }
-
-  /* 3. Notes panel — ensure 16px horizontal padding; overflow-y scroll still works */
+  /* Notes panel — ensure 16px horizontal padding; overflow-y scroll still works */
   .notes-panel          { padding: 0; }
   .notes-panel__header  { padding: 10px 16px; }
   .notes-list           {
