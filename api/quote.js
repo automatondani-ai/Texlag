@@ -208,14 +208,34 @@ export default async function handler(req, res) {
 
   // ── Internal driver-cost calculation ─────────────────────────────────────────
   //
-  // Uses Driver CPM (not Broker CPM).  Excludes gas, detention, and driver assist
-  // since those are pass-through costs, not driver payable.
+  // Full cost using Driver CPM (not Broker CPM) for all mileage charges.
+  // Includes every cost component: gas, driver assist, detention, hazmat,
+  // trailer hold, and backhaul surcharge — because these are all real costs
+  // incurred on the load regardless of how they are labelled on the broker quote.
+  const ic_routeMiles     = r2(totalMiles  * driverBaseCpm)
+  const ic_deadhead       = r2(numDeadhead * driverBaseCpm)
+  const ic_truckCharge    = r2(numTripDays * truckRate)
+  const ic_insurance      = r2(numTripDays * insuranceRate)
+  const ic_gas            = r2((totalMiles / mpg) * gasRate)
+  const ic_driverAssist   = driverAssist ? r2(numPallets * driverAssistRate) : 0
+  const ic_detention      = detention    ? detentionFee : 0
+  const ic_hazmat         = hazmat       ? r2(numTripDays * hazmatRate) : 0
+  const ic_holdCharge     = r2(numHoldDays * holdRate)
+  const ic_backhaulGas    = lowBackhaul
+    ? (partialBackhaul ? r2(ic_gas / 2) : ic_gas)
+    : 0
+
   const internalDriverCost = r2(
-    (totalMiles * driverBaseCpm) +
-    (numTripDays * truckRate) +
-    (numTripDays * insuranceRate) +
-    (numHoldDays * holdRate) +
-    (numDeadhead * driverBaseCpm)
+    ic_routeMiles +
+    ic_deadhead +
+    ic_truckCharge +
+    ic_insurance +
+    ic_gas +
+    ic_driverAssist +
+    ic_detention +
+    ic_hazmat +
+    ic_holdCharge +
+    ic_backhaulGas
   )
 
   // ── Generate quote ID: YYYYMMDD-NNN ────────────────────────────────────────
@@ -233,6 +253,21 @@ export default async function handler(req, res) {
   } catch {
     return res.status(502).json({ error: 'Failed to generate quote ID' })
   }
+
+  // ── Debug logging (visible in Vercel function logs) ─────────────────────────
+  console.log(`[quote:${quoteId}] Internal cost breakdown:`, {
+    routeMiles:   `${r2(totalMiles)} mi × $${driverBaseCpm}/mi = $${ic_routeMiles}`,
+    deadhead:     numDeadhead > 0 ? `${numDeadhead} mi × $${driverBaseCpm}/mi = $${ic_deadhead}` : 'n/a',
+    truckCharge:  `${numTripDays} day(s) × $${truckRate}/day = $${ic_truckCharge}`,
+    insurance:    `${numTripDays} day(s) × $${insuranceRate}/day = $${ic_insurance}`,
+    gas:          `${r2(totalMiles)} mi ÷ ${mpg} mpg × $${gasRate}/gal = $${ic_gas}`,
+    driverAssist: driverAssist ? `${numPallets} pallets × $${driverAssistRate}/pallet = $${ic_driverAssist}` : 'off',
+    detention:    detention    ? `$${ic_detention}` : 'off',
+    hazmat:       hazmat       ? `${numTripDays} day(s) × $${hazmatRate}/day = $${ic_hazmat}` : 'off',
+    holdCharge:   numHoldDays > 0 ? `${numHoldDays} day(s) × $${holdRate}/day = $${ic_holdCharge}` : 'n/a',
+    backhaulGas:  lowBackhaul  ? `${partialBackhaul ? '50% partial' : 'full'} = $${ic_backhaulGas}` : 'off',
+    TOTAL:        `$${internalDriverCost}`,
+  })
 
   // ── Build full response payload ─────────────────────────────────────────────
   //
@@ -338,13 +373,26 @@ export default async function handler(req, res) {
     coreSubtotal,
     gasSurcharge,
     backhaulApplied: lowBackhaul,
-    brokerTotal:  finalQuote,        // broker-facing total (uses Broker CPM)
-    internalTotal: internalDriverCost, // driver payout (uses Driver CPM)
-    totalQuote:   finalQuote,        // alias kept for QuoteResultCard compatibility
+    brokerTotal:  finalQuote,           // broker-facing total (uses Broker CPM)
+    internalTotal: internalDriverCost,  // driver payout (uses Driver CPM)
+    totalQuote:   finalQuote,           // alias kept for QuoteResultCard compatibility
     finalQuote,
 
-    // ── Internal (not shown in client-facing output) ─────────────────────────
+    // ── Internal cost breakdown (individual components, Driver CPM basis) ─────
     internalDriverCost,
+    internalCostBreakdown: {
+      routeMiles:   ic_routeMiles,
+      deadhead:     ic_deadhead,
+      truckCharge:  ic_truckCharge,
+      insurance:    ic_insurance,
+      gas:          ic_gas,
+      driverAssist: ic_driverAssist,
+      detention:    ic_detention,
+      hazmat:       ic_hazmat,
+      holdCharge:   ic_holdCharge,
+      backhaulGas:  ic_backhaulGas,
+      total:        internalDriverCost,
+    },
 
     // ── Rates snapshot (audit trail + trip-duration formula display) ─────────
     ratesSnapshot: {
