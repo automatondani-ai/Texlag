@@ -286,9 +286,23 @@ const s = StyleSheet.create({
 
 export const fmt = n => `$${Number(n ?? 0).toFixed(2)}`
 
-/** Label overrides applied after stripping parentheticals. */
+/**
+ * Clean display names for every line item label.
+ * Keys are the bare label text AFTER parentheticals have been stripped.
+ * This means labels like "Truck rate ($3.50/day × 2 days)" are first
+ * reduced to "Truck rate", then renamed to "Truck Rate" here.
+ */
 const LABEL_RENAME = {
-  'Fuel surcharge': 'Gas',
+  // CPM line (no parens in source — full string is the key)
+  'Route Miles — Solo CPM': 'Route Miles',
+  'Route Miles — Team CPM': 'Route Miles',
+  // Stripped labels → clean title-case names
+  'Truck rate':    'Truck Rate',
+  'Driver assist': 'Driver Assist',
+  'Trailer hold':  'Trailer Hold',
+  'Deadhead CPM':  'Deadhead',
+  'Fuel surcharge':'Gas',
+  'Detention fee': 'Detention Fee',
 }
 
 /** Strip parenthetical rate details and apply any label overrides. */
@@ -410,19 +424,14 @@ export function buildDocument(quote, detentionHourlyRate = 75, logoSrc) {
           )
         ),
 
-        // Backhaul surcharge — rendered separately so it always appears last,
-        // after Gas, with the fuel cost as the quantity context.
+        // Backhaul surcharge — rendered separately so it always appears last, after Gas.
         ...(quote.lineItems?.backhaulSurcharge != null
           ? [h(View, {
               key:   'backhaulSurcharge',
               style: [s.tableRow, activeItems.length % 2 === 1 ? s.tableRowAlt : {}],
             },
-              h(Text, { style: [s.tdLabel, s.colDesc] },
-                quote.toggles?.partialBackhaul ? 'Backhaul Surcharge (50%)' : 'Backhaul Surcharge',
-              ),
-              h(Text, { style: [s.tdMuted,  s.colQty] },
-                fmt(quote.lineItems?.fuelSurcharge?.amount),
-              ),
+              h(Text, { style: [s.tdLabel, s.colDesc] }, 'Backhaul Surcharge'),
+              h(Text, { style: [s.tdMuted,  s.colQty] }, '—'),
               h(Text, { style: [s.tdAmount, s.colAmt] },
                 fmt(quote.lineItems.backhaulSurcharge.amount),
               ),
