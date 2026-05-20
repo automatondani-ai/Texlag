@@ -5,15 +5,17 @@ const GROUPS = [
   {
     title: 'Interstate',
     fields: [
-      { key: 'interstateCpm',       label: 'CPM',        hint: 'Driver cost per mile — interstate loads'         },
-      { key: 'interstateTruckRate', label: 'Truck Rate',  hint: 'All-in rate billed to client per mile'           },
+      { key: 'interstateCpm',       label: 'Driver CPM',   hint: 'Internal driver cost per mile — interstate loads. Used only for driver payout calculation.'   },
+      { key: 'interstateBrokerCpm', label: 'Broker CPM',   hint: 'Marked-up CPM charged to the broker — interstate loads. Used for the broker-facing quote total.' },
+      { key: 'interstateTruckRate', label: 'Truck Rate',   hint: 'Per-day truck charge billed on the broker quote'  },
     ],
   },
   {
     title: 'Intrastate',
     fields: [
-      { key: 'intrastateCpm',       label: 'CPM',        hint: 'Driver cost per mile — intrastate loads'         },
-      { key: 'intrastateTruckRate', label: 'Truck Rate',  hint: 'All-in rate billed to client per mile'           },
+      { key: 'intrastateCpm',       label: 'Driver CPM',   hint: 'Internal driver cost per mile — intrastate loads. Used only for driver payout calculation.'   },
+      { key: 'intrastateBrokerCpm', label: 'Broker CPM',   hint: 'Marked-up CPM charged to the broker — intrastate loads. Used for the broker-facing quote total.' },
+      { key: 'intrastateTruckRate', label: 'Truck Rate',   hint: 'Per-day truck charge billed on the broker quote'  },
     ],
   },
   {

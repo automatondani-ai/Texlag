@@ -10,7 +10,9 @@ import { logAudit, AUDIT } from './_lib/audit.js'
 const RATE_CATALOGUE = [
   // Jurisdiction-based rates shown in the Admin Pricing panel
   { kv: 'interstate_cpm',         client: 'interstateCpm',        default: 2.50 },
+  { kv: 'interstate_broker_cpm',  client: 'interstateBrokerCpm',  default: 3.50 },
   { kv: 'intrastate_cpm',         client: 'intrastateCpm',        default: 2.00 },
+  { kv: 'intrastate_broker_cpm',  client: 'intrastateBrokerCpm',  default: 2.75 },
   { kv: 'interstate_truck_rate',  client: 'interstateTruckRate',  default: 3.50 },
   { kv: 'intrastate_truck_rate',  client: 'intrastateTruckRate',  default: 3.00 },
   { kv: 'insurance_rate',         client: 'insuranceRate',        default: 0.15 },

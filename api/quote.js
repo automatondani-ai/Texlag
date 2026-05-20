@@ -39,15 +39,17 @@ async function totalRoadMiles(pickup, dropoffs, apiKey) {
 // ── Rate loader ─────────────────────────────────────────────────────────────
 
 const RATE_KEYS_AND_DEFAULTS = {
-  interstate_cpm:        2.50,
-  intrastate_cpm:        2.00,
-  interstate_truck_rate: 3.50,
-  intrastate_truck_rate: 3.00,
-  insurance_rate:        0.15,
-  trailer_hold_rate:    75.00,
-  gas_price_per_gallon:  3.85,
-  mpg:                   6,
-  speed_mph:            65,
+  interstate_cpm:           2.50,
+  interstate_broker_cpm:    3.50,
+  intrastate_cpm:           2.00,
+  intrastate_broker_cpm:    2.75,
+  interstate_truck_rate:    3.50,
+  intrastate_truck_rate:    3.00,
+  insurance_rate:           0.15,
+  trailer_hold_rate:       75.00,
+  gas_price_per_gallon:     3.85,
+  mpg:                      6,
+  speed_mph:               65,
   driver_assist_per_pallet: 25.00,
 }
 
@@ -140,43 +142,42 @@ export default async function handler(req, res) {
   const numTripDays = Math.max(1, Math.ceil(tripHours / 11))
 
   // ── Select jurisdiction-based rates ─────────────────────────────────────────
-  const baseCpm      = jurisdiction === 'interstate'
+  const driverBaseCpm  = jurisdiction === 'interstate'
     ? rates.interstate_cpm
     : rates.intrastate_cpm
-  const truckRate    = jurisdiction === 'interstate'
+  const brokerBaseCpm  = jurisdiction === 'interstate'
+    ? rates.interstate_broker_cpm
+    : rates.intrastate_broker_cpm
+  const truckRate      = jurisdiction === 'interstate'
     ? rates.interstate_truck_rate
     : rates.intrastate_truck_rate
-  const insuranceRate = rates.insurance_rate
+  const insuranceRate      = rates.insurance_rate
   const holdRate           = rates.trailer_hold_rate
   const gasRate            = rates.gas_price_per_gallon
   const mpg                = Math.max(0.1, Number(rates.mpg) || 6)   // guard against zero
   const driverAssistRate   = Math.max(0, Number(rates.driver_assist_per_pallet) || 25)
   const driverAssistFee    = driverAssist ? r2(numPallets * driverAssistRate) : 0
 
-  // Team loads: client CPM doubled; internal always single-driver basis
-  const clientCpm   = driverMode === 'team' ? r2(baseCpm * 2) : baseCpm
-  const internalCpm = baseCpm
+  // Team loads: both CPMs are doubled; internal always single-driver basis
+  const brokerCpm  = driverMode === 'team' ? r2(brokerBaseCpm * 2) : brokerBaseCpm
+  const driverCpm  = driverMode === 'team' ? r2(driverBaseCpm * 2) : driverBaseCpm
 
-  // ── Formula ─────────────────────────────────────────────────────────────────
+  // ── Broker-facing formula (shown to driver and on PDF) ───────────────────────
   //
-  // Core Subtotal = (Total Miles    × Driver Base CPM)
-  //              + (Trip Days       × Truck Rate)
-  //              + (Trip Days       × Insurance Rate)
+  // Core Subtotal = (Total Miles      × Broker CPM)
+  //              + (Trip Days         × Truck Rate)
+  //              + (Trip Days         × Insurance Rate)
   //              + (Trailer Hold Days × Hold Rate)
-  //              + (Deadhead Miles  × Driver Base CPM)
+  //              + (Deadhead Miles    × Broker CPM)
   //              + Driver Assist Fee
   //
-  // Total Gas Surcharge = Total Miles × Gas Price Per Gallon
-  //
-  // Backhaul OFF:  Final Quote = Core Subtotal + Gas Surcharge + Detention Fee
-  // Backhaul ON:   Final Quote = Core Subtotal + Gas Surcharge + Detention Fee
-  //                              + Gas Surcharge  (gas surcharge applied twice)
+  // Broker Total  = Core Subtotal + Gas Surcharge + Detention Fee [+ Backhaul Gas]
 
-  const cpmMileage      = r2(totalMiles * clientCpm)
+  const cpmMileage      = r2(totalMiles * brokerCpm)
   const truckCharge     = r2(numTripDays * truckRate)
   const insuranceCharge = r2(numTripDays * insuranceRate)
   const holdCharge      = r2(numHoldDays * holdRate)
-  const deadheadCharge  = r2(numDeadhead * clientCpm)
+  const deadheadCharge  = r2(numDeadhead * brokerCpm)
   const gasSurcharge    = r2((totalMiles / mpg) * gasRate)
 
   const coreSubtotal = r2(
@@ -189,18 +190,21 @@ export default async function handler(req, res) {
   )
 
   // Backhaul surcharge: full gas again (default) or half gas (partial)
-  const backhaulGas  = lowBackhaul
+  const backhaulGas = lowBackhaul
     ? (partialBackhaul ? r2(gasSurcharge / 2) : gasSurcharge)
     : 0
-  const finalQuote   = r2(coreSubtotal + gasSurcharge + detentionFee + backhaulGas)
+  const finalQuote  = r2(coreSubtotal + gasSurcharge + detentionFee + backhaulGas)
 
-  // Internal: same structure but always single-driver CPM, no client markups
+  // ── Internal driver-cost calculation ─────────────────────────────────────────
+  //
+  // Uses Driver CPM (not Broker CPM).  Excludes gas, detention, and driver assist
+  // since those are pass-through costs, not driver payable.
   const internalDriverCost = r2(
-    (totalMiles * internalCpm) +
+    (totalMiles * driverBaseCpm) +
     (numTripDays * truckRate) +
     (numTripDays * insuranceRate) +
     (numHoldDays * holdRate) +
-    (numDeadhead * internalCpm)
+    (numDeadhead * driverBaseCpm)
   )
 
   // ── Generate quote ID: YYYYMMDD-NNN ────────────────────────────────────────
@@ -258,10 +262,9 @@ export default async function handler(req, res) {
     // null entries are omitted by JSON serialisation
     lineItems: {
       cpmMileage: {
-        label:  driverMode === 'team'
-          ? `Route miles — Team CPM (2× @ $${clientCpm}/mi)`
-          : `Route miles — Solo CPM ($${clientCpm}/mi)`,
-        rate:   clientCpm,
+        // No rate figure in the label — broker CPM is internal pricing info
+        label:  driverMode === 'team' ? 'Route Miles — Team CPM' : 'Route Miles — Solo CPM',
+        rate:   brokerCpm,
         miles:  r2(totalMiles),
         amount: cpmMileage,
       },
@@ -284,8 +287,8 @@ export default async function handler(req, res) {
         amount: holdCharge,
       } : null,
       deadheadCharge: numDeadhead > 0 ? {
-        label:  `Deadhead CPM ($${clientCpm}/mi × ${numDeadhead} mi)`,
-        rate:   clientCpm,
+        label:  `Deadhead CPM ($${brokerCpm}/mi × ${numDeadhead} mi)`,
+        rate:   brokerCpm,
         miles:  numDeadhead,
         amount: deadheadCharge,
       } : null,
@@ -318,7 +321,9 @@ export default async function handler(req, res) {
     coreSubtotal,
     gasSurcharge,
     backhaulApplied: lowBackhaul,
-    totalQuote:  finalQuote,   // alias kept for QuoteResultCard compatibility
+    brokerTotal:  finalQuote,        // broker-facing total (uses Broker CPM)
+    internalTotal: internalDriverCost, // driver payout (uses Driver CPM)
+    totalQuote:   finalQuote,        // alias kept for QuoteResultCard compatibility
     finalQuote,
 
     // ── Internal (not shown in client-facing output) ─────────────────────────
@@ -327,8 +332,10 @@ export default async function handler(req, res) {
     // ── Rates snapshot (audit trail + trip-duration formula display) ─────────
     ratesSnapshot: {
       jurisdiction,
-      baseCpm,
-      clientCpm,
+      driverBaseCpm,
+      brokerBaseCpm,
+      brokerCpm,
+      driverCpm,
       truckRate,
       insuranceRate,
       holdRate,
