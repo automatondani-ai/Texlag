@@ -19,6 +19,7 @@
   --gray-900:     #0f172a;
   --red:          #dc2626;
   --red-light:    #fef2f2;
+  --orange:       #f97316;
   --green:        #16a34a;
   --green-light:  #f0fdf4;
   --font:         'Inter', system-ui, -apple-system, sans-serif;
@@ -229,12 +230,42 @@ body {
 
 .input-prefix-wrap .input { padding-left: 24px; }
 
+/* ── ZIP AUTO-RESOLVE ────────────────────────────────────────────────────── */
+
+/* Wrapper gives us a positioning context for the in-field spinner */
+.zip-field-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.zip-field-wrap .input { width: 100%; }
+
+/* Spinner sits inside the right edge of the input */
+.zip-spinner {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+
+/* Small inline warning below the field */
+.zip-warning {
+  font-size: 11px;
+  color: var(--orange);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+
 /* ── STOP LIST ───────────────────────────────────────────────────────────── */
 
 .stop-list { display: flex; flex-direction: column; gap: 8px; }
 
 .stop-row { display: flex; align-items: center; gap: 8px; }
-.stop-row .input { flex: 1; }
+/* stop-row children use zip-field-wrap which provides flex:1 via inline style */
 
 .stop-badge {
   width: 22px;

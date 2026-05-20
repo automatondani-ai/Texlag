@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 
 // ── Static content ──────────────────────────────────────────────────────────
@@ -23,6 +23,7 @@ const DEADHEAD_MODES = [
 
 const fmt     = n  => `$${Number(n).toFixed(2)}`
 const fmtRate = r  => `$${Number(r).toFixed(4)}/mi`
+const ZIP_RE  = /^\d{5}$/
 
 // ── Component ───────────────────────────────────────────────────────────────
 
@@ -33,6 +34,14 @@ export default function DriverQuoteForm() {
   const [jurisdiction,    setJurisdiction]    = useState('interstate')
   const [pickup,          setPickup]          = useState('')
   const [dropoffs,        setDropoffs]        = useState([''])
+
+  // ZIP auto-resolution state
+  // zipResolving: Set of field keys currently awaiting geocode ('pickup' | 'drop-N')
+  // zipWarning:   Map of field key → warning message string
+  const [zipResolving, setZipResolving] = useState(() => new Set())
+  const [zipWarning,   setZipWarning]   = useState(() => new Map())
+  // Debounce timer refs: one per field key
+  const zipTimers = useRef({})
 
   // Trip details
   const [trailerHoldDays, setTrailerHoldDays] = useState('')
@@ -72,9 +81,60 @@ export default function DriverQuoteForm() {
   const [sendMessage,  setSendMessage]  = useState('')
 
   // ── Dropoff helpers ────────────────────────────────────────────────────────
-  const updateDropoff = (i, v) => setDropoffs(d => d.map((x, j) => j === i ? v : x))
+  const updateDropoff = (i, v) => {
+    setDropoffs(d => d.map((x, j) => j === i ? v : x))
+    scheduleZipResolve(`drop-${i}`, v, val => {
+      setDropoffs(d => d.map((x, j) => j === i ? val : x))
+    })
+  }
   const addDropoff    = ()     => setDropoffs(d => [...d, ''])
-  const removeDropoff = i     => setDropoffs(d => d.filter((_, j) => j !== i))
+  const removeDropoff = i     => {
+    setDropoffs(d => d.filter((_, j) => j !== i))
+    // Clean up any pending timer / warning for removed stop
+    clearTimeout(zipTimers.current[`drop-${i}`])
+    delete zipTimers.current[`drop-${i}`]
+    setZipWarning(m => { const n = new Map(m); n.delete(`drop-${i}`); return n })
+    setZipResolving(s => { const n = new Set(s); n.delete(`drop-${i}`); return n })
+  }
+
+  // ── ZIP auto-resolution ────────────────────────────────────────────────────
+  // Called whenever a location field value changes.  If the new value is a bare
+  // 5-digit ZIP we debounce 600 ms then geocode; otherwise we clear any prior
+  // warning for that field so stale messages don't linger.
+  function scheduleZipResolve(key, value, setter) {
+    // Always clear the existing timer so each keystroke resets the clock.
+    clearTimeout(zipTimers.current[key])
+
+    // If there's a warning showing and the driver has changed the value,
+    // clear it immediately so they don't see a stale error.
+    setZipWarning(m => {
+      if (!m.has(key)) return m
+      const n = new Map(m); n.delete(key); return n
+    })
+
+    if (!ZIP_RE.test(value.trim())) return   // not a bare ZIP — nothing to resolve
+
+    zipTimers.current[key] = setTimeout(() => resolveZip(key, value.trim(), setter), 600)
+  }
+
+  async function resolveZip(key, zip, setter) {
+    setZipResolving(s => new Set(s).add(key))
+    setZipWarning(m => { const n = new Map(m); n.delete(key); return n })
+    try {
+      const res  = await fetch('/api/geocode', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body:    JSON.stringify({ zip }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.resolved) throw new Error(data.error ?? 'No result')
+      setter(data.resolved)
+    } catch {
+      setZipWarning(m => new Map(m).set(key, 'Could not resolve ZIP — please verify.'))
+    } finally {
+      setZipResolving(s => { const n = new Set(s); n.delete(key); return n })
+    }
+  }
 
   // ── Deadhead — location-based ──────────────────────────────────────────────
   async function calcDeadheadByAddress() {
@@ -307,8 +367,21 @@ export default function DriverQuoteForm() {
 
           <div className="field">
             <label className="label">Pickup Location <span className="req" aria-hidden="true">*</span></label>
-            <input className="input" placeholder="Address or ZIP code"
-              value={pickup} onChange={e => setPickup(e.target.value)} />
+            <div className="zip-field-wrap">
+              <input className="input" placeholder="Address or ZIP code"
+                value={pickup}
+                onChange={e => {
+                  const v = e.target.value
+                  setPickup(v)
+                  scheduleZipResolve('pickup', v, setPickup)
+                }} />
+              {zipResolving.has('pickup') && (
+                <span className="zip-spinner"><span className="spinner spinner--dark" /></span>
+              )}
+            </div>
+            {zipWarning.get('pickup') && (
+              <span className="zip-warning">{zipWarning.get('pickup')}</span>
+            )}
           </div>
 
           <div className="field" style={{ marginTop: 18 }}>
@@ -317,14 +390,23 @@ export default function DriverQuoteForm() {
               {dropoffs.map((val, i) => (
                 <div key={i} className="stop-row">
                   <span className="stop-badge">{i + 1}</span>
-                  <input className="input" placeholder={`Destination ${i + 1}`}
-                    value={val} onChange={e => updateDropoff(i, e.target.value)} />
+                  <div className="zip-field-wrap" style={{ flex: 1 }}>
+                    <input className="input" placeholder={`Destination ${i + 1}`}
+                      value={val}
+                      onChange={e => updateDropoff(i, e.target.value)} />
+                    {zipResolving.has(`drop-${i}`) && (
+                      <span className="zip-spinner"><span className="spinner spinner--dark" /></span>
+                    )}
+                  </div>
                   {dropoffs.length > 1 && (
                     <button type="button" className="icon-btn icon-btn--danger"
                       onClick={() => removeDropoff(i)} title="Remove stop">×</button>
                   )}
                 </div>
               ))}
+              {dropoffs.map((_, i) => zipWarning.get(`drop-${i}`) ? (
+                <span key={`warn-${i}`} className="zip-warning">{zipWarning.get(`drop-${i}`)}</span>
+              ) : null)}
             </div>
             <button type="button" className="add-stop-btn" onClick={addDropoff}>+ Add stop</button>
           </div>
