@@ -13,13 +13,28 @@ const SIDEBAR = [
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth()
-  const [section, setSection] = useState('pricing')
+  const [section,     setSection]     = useState('pricing')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  function selectSection(key) {
+    setSection(key)
+    setSidebarOpen(false)
+  }
 
   return (
     <>
       {/* ── Top nav ─────────────────────────────────────────────────────────── */}
       <nav className="nav">
         <div className="nav__inner">
+          {/* Hamburger — visible only on mobile via CSS */}
+          <button
+            className="sidebar-hamburger"
+            aria-label="Open navigation menu"
+            onClick={() => setSidebarOpen(true)}
+          >
+            ☰
+          </button>
+
           <div className="nav__brand">
             <img src={logoUrl} alt="TexLag Express" className="nav__logo" />
             <div className="nav__brand-info">
@@ -39,15 +54,24 @@ export default function AdminDashboard() {
       {/* ── Body ────────────────────────────────────────────────────────────── */}
       <div className="dashboard">
 
+        {/* Overlay — closes sidebar when tapped on mobile */}
+        {sidebarOpen && (
+          <div
+            className="sidebar-overlay"
+            onClick={() => setSidebarOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+
         {/* Side nav */}
-        <aside className="dashboard__sidebar">
+        <aside className={`dashboard__sidebar${sidebarOpen ? ' dashboard__sidebar--open' : ''}`}>
           <p className="sidebar__section-label">Admin</p>
           <nav className="sidebar-nav">
             {SIDEBAR.map(({ key, label }) => (
               <button
                 key={key}
                 className={`sidebar-nav__item${section === key ? ' sidebar-nav__item--active' : ''}`}
-                onClick={() => setSection(key)}
+                onClick={() => selectSection(key)}
               >
                 {label}
               </button>

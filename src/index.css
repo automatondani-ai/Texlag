@@ -1652,18 +1652,199 @@ body {
 
 /* ── RESPONSIVE ──────────────────────────────────────────────────────────── */
 
-@media (max-width: 560px) {
-  .page { padding: 24px 16px 60px; }
-  .card { padding: 20px 18px; }
-  .rates-grid { grid-template-columns: 1fr; }
-  .toggles-grid { grid-template-columns: 1fr; }
-  .quote-result__header { padding: 16px 18px; }
-  .quote-result__body { padding: 18px; }
-  .jurisdiction-toggle { grid-template-columns: 1fr; }
-  .trip-details-grid { grid-template-columns: 1fr; }
-  .deadhead-modes { flex-wrap: wrap; }
-  .deadhead-location-row { flex-direction: column; align-items: stretch; }
-  .driver-quote-page { padding: 24px 16px 60px; }
+/* ── Sidebar hamburger + overlay (desktop: hidden) ───────────────────────── */
+
+.sidebar-hamburger {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  color: var(--gray-600);
+  font-size: 20px;
+  line-height: 1;
+  margin-right: 4px;
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.sidebar-hamburger:hover { background: var(--gray-100); }
+
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 40;
+}
+
+/* ── Quote result PDF row + broker send form (desktop base) ──────────────── */
+
+.quote-result__pdf-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+
+.broker-send-panel {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--gray-100);
+}
+
+.broker-send-form {
+  display: flex;
+  gap: 8px;
+}
+
+/* ── 768px — Tablet ──────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  /* Show hamburger */
+  .sidebar-hamburger { display: flex; }
+
+  /* Hide credential line in nav to save space */
+  .nav__brand-creds { display: none; }
+
+  /* Sidebar becomes a fixed off-canvas panel */
+  .dashboard__sidebar {
+    position: fixed;
+    top: 0;
+    left: -260px;
+    width: 240px;
+    height: 100%;
+    z-index: 45;
+    padding-top: 20px;
+    background: #fff;
+    border-right: none;
+    box-shadow: var(--shadow-lg);
+    transition: left 0.25s ease;
+  }
+
+  .dashboard__sidebar--open {
+    left: 0;
+  }
+
+  /* Tables scroll horizontally instead of overflowing */
+  .dt-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Summary cards: 2 columns */
+  .summary-cards { grid-template-columns: repeat(2, 1fr); }
+
+  /* Profile info: 2 columns */
+  .profile-info-grid { grid-template-columns: repeat(2, 1fr); }
+
+  /* 44 px minimum touch targets */
+  .sidebar-nav__item { min-height: 44px; display: flex; align-items: center; }
+  .btn               { min-height: 44px; }
+  .nav__logout       { min-height: 44px; display: flex; align-items: center; }
+  .input             { min-height: 44px; }
+  .deadhead-mode-btn { min-height: 44px; }
+  .jurisdiction-btn  { min-height: 44px; }
+  .icon-btn          { width: 44px; height: 44px; }
+}
+
+/* ── 640px — Phone ───────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  /* Spacing */
+  .page             { padding: 20px 16px 60px; }
+  .card             { padding: 18px 16px; }
+  .driver-quote-page { padding: 20px 16px 60px; }
+  .view-page        { padding: 24px 16px 60px; }
+
+  /* Nav */
+  .nav__inner    { padding: 0 12px; }
+  .nav__user-name { display: none; }
+  .nav__brand-name { font-size: 15px; }
+
+  /* Login */
+  .login-card { padding: 28px 20px; }
+
+  /* Quote form grids → single column */
+  .rates-grid           { grid-template-columns: 1fr; }
+  .toggles-grid         { grid-template-columns: 1fr; }
+  .jurisdiction-toggle  { grid-template-columns: 1fr; }
+  .trip-details-grid    { grid-template-columns: 1fr; }
+  .driver-form-grid     { grid-template-columns: 1fr; }
+
+  /* Deadhead */
+  .deadhead-modes          { flex-wrap: wrap; }
+  .deadhead-mode-btn       { flex: 1 1 calc(50% - 4px); }
+  .deadhead-location-row   { flex-direction: column; align-items: stretch; }
+
+  /* Driver mode toggle — equal-width, full row */
+  .mode-toggle { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .mode-btn    { text-align: center; }
+
+  /* Toggle chips — allow labels to wrap */
+  .option-row   { flex-wrap: wrap; }
+  .toggle-label { white-space: normal; }
+
+  /* Quote result header */
+  .quote-result__header {
+    padding: 16px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .quote-result__meta { margin-top: 0; }
+  .quote-result__body { padding: 16px; }
+
+  /* PDF download row — stacks vertically */
+  .quote-result__pdf-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .quote-result__pdf-row .btn {
+    width: 100%;
+    justify-content: center;
+    margin-left: 0 !important;
+  }
+
+  /* Broker send form — stacks vertically */
+  .broker-send-form { flex-direction: column; }
+  .broker-send-form .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Operational notes — cap height so it doesn't push content off screen */
+  .notes-list {
+    max-height: 180px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* View page */
+  .view-page__title { font-size: 18px; }
+}
+
+/* ── 480px — Small phone ─────────────────────────────────────────────────── */
+
+@media (max-width: 480px) {
+  /* Single-column grids */
+  .summary-cards    { grid-template-columns: 1fr; }
+  .profile-info-grid { grid-template-columns: 1fr; }
+
+  /* Type scale */
+  .page__title { font-size: 20px; }
+  .view-page__title { font-size: 18px; }
+
+  /* Login */
+  .login-card { padding: 24px 14px; }
+
+  /* Rates card padding */
+  .rates-card { padding: 16px 12px; }
 }
 
 /* ── FORGOT PASSWORD ─────────────────────────────────────────────────────── */
