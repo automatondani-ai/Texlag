@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -9,6 +9,13 @@ const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDig
 
 function fmtDate(iso, opts = { year: 'numeric', month: 'short', day: 'numeric' }) {
   return new Date(iso).toLocaleDateString('en-US', opts)
+}
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+function dateParts(iso) {
+  const d = new Date(iso)
+  return isNaN(d) ? null : { year: d.getFullYear(), month: d.getMonth() + 1 }
 }
 
 // ── Summary Cards ─────────────────────────────────────────────────────────────
@@ -38,8 +45,6 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
   const [driver,      setDriver]      = useState(initialDriver)
   const [quotes,      setQuotes]      = useState([])
   const [total,       setTotal]       = useState(0)
-  const [page,        setPage]        = useState(1)
-  const [totalPages,  setTotalPages]  = useState(1)
   const [loadingQ,       setLoadingQ]       = useState(true)
   const [errorQ,         setErrorQ]         = useState('')
   const [toggling,       setToggling]       = useState(false)
@@ -49,19 +54,25 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
   const [pdfDownloading, setPdfDownloading] = useState(new Set())
   const [pdfError,       setPdfError]       = useState('')
 
-  const fetchQuotes = useCallback(async (p) => {
+  // Quote filters
+  const [filterMonth, setFilterMonth] = useState('')
+  const [filterYear,  setFilterYear]  = useState('')
+
+  const fetchQuotes = useCallback(async () => {
     setLoadingQ(true)
     setErrorQ('')
     try {
       const res  = await fetch(
-        `/api/admin/drivers?action=quotes&email=${encodeURIComponent(driver.email)}&page=${p}`,
+        `/api/admin/drivers?action=quotes&email=${encodeURIComponent(driver.email)}&all=true`,
         { headers: { Authorization: `Bearer ${getToken()}` } }
       )
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
-      setQuotes(data.quotes)
+      const sorted = [...(data.quotes ?? [])].sort(
+        (a, b) => new Date(b.generatedAt) - new Date(a.generatedAt)
+      )
+      setQuotes(sorted)
       setTotal(data.total)
-      setTotalPages(data.totalPages)
     } catch (e) {
       setErrorQ(e.message)
     } finally {
@@ -69,7 +80,40 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
     }
   }, [driver.email, getToken])
 
-  useEffect(() => { fetchQuotes(page) }, [page, fetchQuotes])
+  useEffect(() => { fetchQuotes() }, [fetchQuotes])
+
+  // ── Derived filter options ────────────────────────────────────────────────
+  const { availableYears, availableMonths } = useMemo(() => {
+    const yearSet  = new Set()
+    const monthSet = new Set()
+    quotes.forEach(q => {
+      const p = dateParts(q.generatedAt)
+      if (p) { yearSet.add(p.year); monthSet.add(p.month) }
+    })
+    return {
+      availableYears:  [...yearSet].sort((a, b) => b - a),
+      availableMonths: [...monthSet].sort((a, b) => a - b),
+    }
+  }, [quotes])
+
+  const filtered = useMemo(() => quotes.filter(q => {
+    const p = dateParts(q.generatedAt)
+    if (!p) return true
+    if (filterYear  && p.year  !== Number(filterYear))  return false
+    if (filterMonth && p.month !== Number(filterMonth)) return false
+    return true
+  }), [quotes, filterYear, filterMonth])
+
+  const wonQuotes      = useMemo(() => filtered.filter(q => q.won), [filtered])
+  const totalWonBroker = useMemo(
+    () => wonQuotes.reduce((s, q) => s + Number(q.brokerTotal ?? q.finalQuote ?? 0), 0),
+    [wonQuotes]
+  )
+  const totalWonDriver = useMemo(
+    () => wonQuotes.reduce((s, q) => s + Number(q.internalDriverCost ?? 0), 0),
+    [wonQuotes]
+  )
+  const hasFilters = filterMonth !== '' || filterYear !== ''
 
   async function handleToggle() {
     setToggling(true)
@@ -258,64 +302,111 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
           <div className="profile-quotes__empty"><span className="spinner spinner--dark" /></div>
         ) : errorQ ? (
           <div className="banner banner--error">{errorQ}</div>
-        ) : quotes.length === 0 ? (
-          <div className="profile-quotes__empty">No quotes generated yet.</div>
         ) : (
           <>
-            <div className="dt-wrap">
-              <table className="dt">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Quote ID</th>
-                    <th>Route</th>
-                    <th style={{ textAlign: 'right' }}>Total</th>
-                    <th style={{ textAlign: 'center' }}>PDF</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {quotes.map(q => {
-                    const dest        = q.dropoffs?.[q.dropoffs.length - 1] ?? ''
-                    const downloading = pdfDownloading.has(q.quoteId)
-                    return (
-                      <tr key={q.quoteId}>
-                        <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(q.generatedAt)}</td>
-                        <td><code className="quote-id-code">{q.quoteId}</code></td>
-                        <td className="quote-route">{q.pickup} → {dest}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(q.finalQuote)}</td>
-                        <td style={{ textAlign: 'center' }}>
-                          <button
-                            className="btn btn--sm btn--outline"
-                            title={`Download PDF for ${q.quoteId}`}
-                            disabled={downloading}
-                            onClick={() => downloadQuotePDF(q)}
-                            style={{ minWidth: 36, padding: '3px 8px' }}
-                          >
-                            {downloading
-                              ? <span className="spinner spinner--dark" style={{ width: 12, height: 12 }} />
-                              : '⬇'}
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+            {/* Earnings summary — won quotes only */}
+            {wonQuotes.length > 0 && (
+              <div className="qh-summary" style={{ marginBottom: 16 }}>
+                <div className="qh-summary-card">
+                  <div className="qh-summary-card__value">{fmt(totalWonBroker)}</div>
+                  <div className="qh-summary-card__label">Total Won — Broker Amount</div>
+                </div>
+                <div className="qh-summary-card">
+                  <div className="qh-summary-card__value qh-summary-card__value--teal">{fmt(totalWonDriver)}</div>
+                  <div className="qh-summary-card__label">Total Won — Driver Payable</div>
+                </div>
+              </div>
+            )}
 
-            {totalPages > 1 && (
-              <div className="pagination">
-                <button
-                  className="btn btn--sm btn--outline"
-                  disabled={page <= 1}
-                  onClick={() => setPage(p => p - 1)}
-                >← Prev</button>
-                <span className="pagination__info">Page {page} of {totalPages} &nbsp;·&nbsp; {total} quotes</span>
-                <button
-                  className="btn btn--sm btn--outline"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage(p => p + 1)}
-                >Next →</button>
+            {/* Filters */}
+            {quotes.length > 0 && (
+              <div className="qh-filters" style={{ marginBottom: 16 }}>
+                <div className="qh-filters__group">
+                  <label className="qh-filters__label">Month</label>
+                  <select className="qh-select" value={filterMonth} onChange={e => setFilterMonth(e.target.value)}>
+                    <option value="">All months</option>
+                    {availableMonths.map(m => (
+                      <option key={m} value={String(m)}>{MONTHS[m - 1]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="qh-filters__group">
+                  <label className="qh-filters__label">Year</label>
+                  <select className="qh-select" value={filterYear} onChange={e => setFilterYear(e.target.value)}>
+                    <option value="">All years</option>
+                    {availableYears.map(y => (
+                      <option key={y} value={String(y)}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+                {hasFilters && (
+                  <button className="btn btn--outline btn--sm qh-filters__clear"
+                    onClick={() => { setFilterMonth(''); setFilterYear('') }}>
+                    Clear filters
+                  </button>
+                )}
+                <span className="qh-filters__count">
+                  {filtered.length} quote{filtered.length !== 1 ? 's' : ''}
+                  {hasFilters ? ' matching' : ' total'}
+                </span>
+              </div>
+            )}
+
+            {filtered.length === 0 ? (
+              <div className="profile-quotes__empty">
+                {quotes.length === 0
+                  ? 'No quotes generated yet.'
+                  : 'No quotes match the selected filters.'}
+              </div>
+            ) : (
+              <div className="dt-wrap">
+                <table className="dt">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Quote ID</th>
+                      <th>Route</th>
+                      <th style={{ textAlign: 'right' }}>Total</th>
+                      <th style={{ textAlign: 'center' }}>Status</th>
+                      <th style={{ textAlign: 'center' }}>PDF</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map(q => {
+                      const dest        = q.dropoffs?.[q.dropoffs.length - 1] ?? ''
+                      const downloading = pdfDownloading.has(q.quoteId)
+                      return (
+                        <tr key={q.quoteId}>
+                          <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(q.generatedAt)}</td>
+                          <td><code className="quote-id-code">{q.quoteId}</code></td>
+                          <td className="quote-route">{q.pickup} → {dest}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(q.finalQuote)}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span
+                              className={`qh-won-btn${q.won ? ' qh-won-btn--on' : ''}`}
+                              style={{ cursor: 'default', pointerEvents: 'none' }}
+                            >
+                              {q.won ? '✓ Won' : 'Pending'}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <button
+                              className="btn btn--sm btn--outline"
+                              title={`Download PDF for ${q.quoteId}`}
+                              disabled={downloading}
+                              onClick={() => downloadQuotePDF(q)}
+                              style={{ minWidth: 36, padding: '3px 8px' }}
+                            >
+                              {downloading
+                                ? <span className="spinner spinner--dark" style={{ width: 12, height: 12 }} />
+                                : '⬇'}
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </>

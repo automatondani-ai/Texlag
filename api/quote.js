@@ -1,6 +1,7 @@
 import redis from './_lib/redis.js'
 import { verifyToken } from './_lib/auth.js'
 import { logAudit, AUDIT } from './_lib/audit.js'
+import { k } from './_lib/keys.js'
 
 const DISTANCE_MATRIX_URL = 'https://maps.googleapis.com/maps/api/distancematrix/json'
 
@@ -256,7 +257,7 @@ export default async function handler(req, res) {
   let quoteId
   try {
     const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')  // YYYYMMDD
-    const seq  = await redis.incr(`quote_counter:${date}`)
+    const seq  = await redis.incr(k.quoteCounter(date))
     quoteId    = `${date}-${String(seq).padStart(3, '0')}`
   } catch {
     return res.status(502).json({ error: 'Failed to generate quote ID' })
@@ -444,9 +445,9 @@ export default async function handler(req, res) {
   // the driver so the quote is not lost from their screen.
   try {
     await Promise.all([
-      redis.set(`quote:${quoteId}`, quotePayload),
-      redis.lpush(`quotes:driver:${caller.email}`, quoteId),
-      redis.incr('quotes:platform:total'),
+      redis.set(k.quote(quoteId), quotePayload),
+      redis.lpush(k.quotesDriver(caller.email), quoteId),
+      redis.incr(k.platformTotal()),
     ])
   } catch (err) {
     console.error('[quote] Redis snapshot save failed — quote not persisted:', err)

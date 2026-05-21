@@ -12,6 +12,7 @@
 
 import redis from '../_lib/redis.js'
 import { verifyToken } from '../_lib/auth.js'
+import { k } from '../_lib/keys.js'
 
 export default async function handler(req, res) {
   // ── Auth ──────────────────────────────────────────────────────────────────
@@ -29,13 +30,13 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       // quotes:driver:{email} is an LPUSH list — index 0 is newest
-      const allIds = await redis.lrange(`quotes:driver:${email}`, 0, -1)
+      const allIds = await redis.lrange(k.quotesDriver(email), 0, -1)
 
       if (!allIds.length) {
         return res.status(200).json({ quotes: [] })
       }
 
-      const raw    = await redis.mget(...allIds.map(id => `quote:${id}`))
+      const raw    = await redis.mget(...allIds.map(id => k.quote(id)))
       const quotes = raw.filter(Boolean)   // drop any null (orphaned IDs)
 
       return res.status(200).json({ quotes })
@@ -58,7 +59,7 @@ export default async function handler(req, res) {
 
     let quote
     try {
-      quote = await redis.get(`quote:${quoteId}`)
+      quote = await redis.get(k.quote(quoteId))
     } catch (e) {
       console.error('[driver/quotes PATCH] redis get error:', e)
       return res.status(502).json({ error: 'Database error' })
@@ -76,7 +77,7 @@ export default async function handler(req, res) {
     const updated = { ...quote, won }
 
     try {
-      await redis.set(`quote:${quoteId}`, updated)
+      await redis.set(k.quote(quoteId), updated)
     } catch (e) {
       console.error('[driver/quotes PATCH] redis set error:', e)
       return res.status(502).json({ error: 'Database error' })

@@ -11,6 +11,7 @@
 import redis from '../_lib/redis.js'
 import { requireAdmin } from '../_lib/auth.js'
 import { logAudit, AUDIT } from '../_lib/audit.js'
+import { k } from '../_lib/keys.js'
 
 const PAGE_SIZE = 15
 
@@ -36,8 +37,8 @@ async function handleList(req, res) {
 
     // Fetch per-driver quote counts + platform total in one parallel batch
     const [platformTotal, ...quoteCounts] = await Promise.all([
-      redis.get('quotes:platform:total'),
-      ...drivers.map(d => redis.llen(`quotes:driver:${d.email}`)),
+      redis.get(k.platformTotal()),
+      ...drivers.map(d => redis.llen(k.quotesDriver(d.email))),
     ])
 
     const enriched = drivers.map((d, i) => ({
@@ -63,30 +64,37 @@ async function handleList(req, res) {
 // ── GET: driver quote history ─────────────────────────────────────────────────
 
 async function handleQuotes(req, res) {
-  const { email, page: pageStr = '1' } = req.query ?? {}
+  const { email, page: pageStr = '1', all } = req.query ?? {}
 
   if (!email || typeof email !== 'string' || !email.trim()) {
     return res.status(400).json({ error: '`email` query param is required' })
   }
 
   const normalizedEmail = email.toLowerCase().trim()
-  const page            = Math.max(1, parseInt(pageStr, 10) || 1)
 
   try {
     // LPUSH order: index 0 is the newest quote ID
-    const allIds = await redis.lrange(`quotes:driver:${normalizedEmail}`, 0, -1)
+    const allIds = await redis.lrange(k.quotesDriver(normalizedEmail), 0, -1)
     const total  = allIds.length
 
     if (total === 0) {
       return res.status(200).json({ quotes: [], total: 0, page: 1, totalPages: 1 })
     }
 
+    // all=true — return every quote at once (used by the admin profile with client-side filtering)
+    if (all === 'true') {
+      const raw    = await redis.mget(...allIds.map(id => k.quote(id)))
+      const quotes = raw.filter(Boolean)
+      return res.status(200).json({ quotes, total, page: 1, totalPages: 1 })
+    }
+
+    const page       = Math.max(1, parseInt(pageStr, 10) || 1)
     const totalPages = Math.ceil(total / PAGE_SIZE)
     const safePage   = Math.min(page, totalPages)
     const start      = (safePage - 1) * PAGE_SIZE
     const pageIds    = allIds.slice(start, start + PAGE_SIZE)
 
-    const raw    = await redis.mget(...pageIds.map(id => `quote:${id}`))
+    const raw    = await redis.mget(...pageIds.map(id => k.quote(id)))
     const quotes = raw.filter(Boolean)
 
     return res.status(200).json({ quotes, total, page: safePage, totalPages })
