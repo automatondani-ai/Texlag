@@ -85,15 +85,17 @@ export default async function handler(req, res) {
 
   // ── Parse body ──────────────────────────────────────────────────────────────
   const {
-    jurisdiction    = 'interstate',
+    jurisdiction          = 'interstate',
     pickup,
     dropoffs,
-    driverMode      = 'solo',
-    numberOfPallets = 0,
-    trailerHoldDays = 0,
-    deadheadMiles   = 0,
-    toggles         = {},
-    extras          = {},
+    driverMode            = 'solo',
+    loadType              = 'palletized',
+    numberOfPallets       = 0,
+    driverAssistManualFee = 0,
+    trailerHoldDays       = 0,
+    deadheadMiles         = 0,
+    toggles               = {},
+    extras                = {},
   } = req.body ?? {}
 
   // ── Validate ────────────────────────────────────────────────────────────────
@@ -164,7 +166,11 @@ export default async function handler(req, res) {
   const gasRate            = rates.gas_price_per_gallon
   const mpg                = Math.max(0.1, Number(rates.mpg) || 6)   // guard against zero
   const driverAssistRate   = Math.max(0, Number(rates.driver_assist_per_pallet) || 25)
-  const driverAssistFee    = driverAssist ? r2(numPallets * driverAssistRate) : 0
+  const manualFee          = Math.max(0, Number(driverAssistManualFee) || 0)
+  const useManualFee       = loadType === 'non-palletized' || numPallets === 0
+  const driverAssistFee    = driverAssist
+    ? (useManualFee ? r2(manualFee) : r2(numPallets * driverAssistRate))
+    : 0
 
   // Team loads: both CPMs are doubled; internal always single-driver basis
   const brokerCpm  = driverMode === 'team' ? r2(brokerBaseCpm * 2) : brokerBaseCpm
@@ -217,7 +223,9 @@ export default async function handler(req, res) {
   const ic_truckCharge    = r2(numTripDays * truckRate)
   const ic_insurance      = r2(numTripDays * insuranceRate)
   const ic_gas            = r2((totalMiles / mpg) * gasRate)
-  const ic_driverAssist   = driverAssist ? r2(numPallets * driverAssistRate) : 0
+  const ic_driverAssist   = driverAssist
+    ? (useManualFee ? r2(manualFee) : r2(numPallets * driverAssistRate))
+    : 0
   const ic_detention      = detention    ? detentionFee : 0
   const ic_hazmat         = hazmat       ? r2(numTripDays * hazmatRate) : 0
   const ic_holdCharge     = r2(numHoldDays * holdRate)
@@ -261,7 +269,9 @@ export default async function handler(req, res) {
     truckCharge:  `${numTripDays} day(s) × $${truckRate}/day = $${ic_truckCharge}`,
     insurance:    `${numTripDays} day(s) × $${insuranceRate}/day = $${ic_insurance}`,
     gas:          `${r2(totalMiles)} mi ÷ ${mpg} mpg × $${gasRate}/gal = $${ic_gas}`,
-    driverAssist: driverAssist ? `${numPallets} pallets × $${driverAssistRate}/pallet = $${ic_driverAssist}` : 'off',
+    driverAssist: driverAssist
+      ? (useManualFee ? `flat fee $${ic_driverAssist}` : `${numPallets} pallets × $${driverAssistRate}/pallet = $${ic_driverAssist}`)
+      : 'off',
     detention:    detention    ? `$${ic_detention}` : 'off',
     hazmat:       hazmat       ? `${numTripDays} day(s) × $${hazmatRate}/day = $${ic_hazmat}` : 'off',
     holdCharge:   numHoldDays > 0 ? `${numHoldDays} day(s) × $${holdRate}/day = $${ic_holdCharge}` : 'n/a',
@@ -300,6 +310,7 @@ export default async function handler(req, res) {
 
     // ── Options ─────────────────────────────────────────────────────────────
     driverMode,
+    loadType,
     tripDays:        numTripDays,
     numberOfPallets: numPallets,
     toggles: { driverAssist, detention, lowBackhaul, partialBackhaul, hazmat },
@@ -345,8 +356,10 @@ export default async function handler(req, res) {
         amount: deadheadCharge,
       } : null,
       driverAssistFee: driverAssist ? {
-        label:   `Driver assist (${numPallets} pallet${numPallets !== 1 ? 's' : ''} × $${driverAssistRate}/pallet)`,
-        pallets: numPallets,
+        label:   useManualFee
+          ? 'Driver assist (flat fee)'
+          : `Driver assist (${numPallets} pallet${numPallets !== 1 ? 's' : ''} × $${driverAssistRate}/pallet)`,
+        ...(useManualFee ? {} : { pallets: numPallets }),
         amount:  driverAssistFee,
       } : null,
       gasSurcharge: {

@@ -378,8 +378,12 @@ export function buildDocument(quote, detentionHourlyRate = 75, logoSrc) {
           h(Text, { style: s.infoValue }, `${quote.totalMiles} mi`),
         ),
         h(View, { style: s.infoCell },
-          h(Text, { style: s.infoLabel }, 'Pallets'),
-          h(Text, { style: s.infoValue }, `${quote.numberOfPallets ?? 0}`),
+          h(Text, { style: s.infoLabel }, 'Load Type'),
+          h(Text, { style: s.infoValue },
+            quote.loadType === 'non-palletized'
+              ? 'Non-Palletized'
+              : `Palletized${(quote.numberOfPallets ?? 0) > 0 ? ` (${quote.numberOfPallets})` : ''}`
+          ),
         ),
       ),
 

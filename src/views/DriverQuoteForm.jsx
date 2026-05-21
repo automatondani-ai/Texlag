@@ -57,8 +57,10 @@ export default function DriverQuoteForm() {
   // Driver
   const [driverMode,      setDriverMode]      = useState('solo')
 
-  // Pallets (always required)
-  const [numberOfPallets, setNumberOfPallets] = useState('')
+  // Load type
+  const [loadType,               setLoadType]               = useState('palletized')
+  const [numberOfPallets,        setNumberOfPallets]        = useState('')
+  const [driverAssistManualFee,  setDriverAssistManualFee]  = useState('')
 
   // Toggles
   const [driverAssist,    setDriverAssist]    = useState(false)
@@ -288,9 +290,6 @@ export default function DriverQuoteForm() {
     setQuote(null)
     if (!pickup.trim())                       return setError('Enter a pickup location.')
     if (dropoffs.some(d => !d.trim()))        return setError('Fill in all drop-off locations.')
-    if (!numberOfPallets || Number(numberOfPallets) < 1)
-                                              return setError('Enter the number of pallets (minimum 1).')
-
     const token = getToken()
     if (!token) return setError('Session expired — please log in again.')
 
@@ -304,7 +303,9 @@ export default function DriverQuoteForm() {
           pickup:          pickup.trim(),
           dropoffs:        dropoffs.map(d => d.trim()),
           driverMode,
+          loadType,
           numberOfPallets: Number(numberOfPallets) || 0,
+          driverAssistManualFee: Number(driverAssistManualFee) || 0,
           trailerHoldDays: Number(trailerHoldDays) || 0,
           deadheadMiles:   Number(deadheadMiles)   || 0,
           toggles: {
@@ -416,15 +417,32 @@ export default function DriverQuoteForm() {
         {/* ── 3. Trip details ────────────────────────────────────────────── */}
         <div className="card">
           <p className="card__title">Trip Details</p>
-          <div className="trip-details-grid">
-            <div className="field">
-              <label className="label">
-                Number of Pallets <span className="req" aria-hidden="true">*</span>
-              </label>
-              <input className="input" type="number" min="1" step="1" placeholder="e.g. 12"
-                value={numberOfPallets} onChange={e => setNumberOfPallets(e.target.value)} />
-              <span className="hint">Required — used to calculate driver assist cost</span>
+
+          <div className="field" style={{ marginBottom: 16 }}>
+            <label className="label">Load Type</label>
+            <div className="mode-toggle">
+              {[
+                { value: 'palletized',     label: 'Palletized Load'     },
+                { value: 'non-palletized', label: 'Non-Palletized Load' },
+              ].map(({ value, label }) => (
+                <button key={value} type="button"
+                  className={`mode-btn${loadType === value ? ' mode-btn--active' : ''}`}
+                  onClick={() => setLoadType(value)}>
+                  {label}
+                </button>
+              ))}
             </div>
+          </div>
+
+          <div className="trip-details-grid">
+            {loadType === 'palletized' && (
+              <div className="field">
+                <label className="label">Number of Pallets</label>
+                <input className="input" type="number" min="0" step="1" placeholder="e.g. 12"
+                  value={numberOfPallets} onChange={e => setNumberOfPallets(e.target.value)} />
+                <span className="hint">Used to calculate driver assist cost</span>
+              </div>
+            )}
             <div className="field">
               <label className="label">Trailer Hold Days</label>
               <input className="input" type="number" min="0" step="1" placeholder="0"
@@ -562,11 +580,23 @@ export default function DriverQuoteForm() {
             </div>
           </div>
           {driverAssist && (
-            <p className="option-sub-hint">
-              {numberOfPallets
-                ? `${numberOfPallets} pallet${Number(numberOfPallets) !== 1 ? 's' : ''} × admin rate`
-                : 'Set pallet count above'}
-            </p>
+            loadType === 'palletized' && Number(numberOfPallets) > 0
+              ? (
+                <p className="option-sub-hint">
+                  {numberOfPallets} pallet{Number(numberOfPallets) !== 1 ? 's' : ''} × admin rate
+                </p>
+              )
+              : (
+                <div className="option-sub-field">
+                  <label className="label" style={{ fontSize: 12, marginBottom: 4 }}>Driver Assist Fee ($)</label>
+                  <div className="input-prefix-wrap">
+                    <span className="prefix">$</span>
+                    <input className="input" type="number" min="0" step="0.01" placeholder="0.00"
+                      value={driverAssistManualFee}
+                      onChange={e => setDriverAssistManualFee(e.target.value)} />
+                  </div>
+                </div>
+              )
           )}
 
           <div className="option-divider" />
@@ -742,8 +772,12 @@ function QuoteResultCard({
           </span>
         </span>
         <span>
-          <span style={{ fontWeight: 600 }}>Pallets: </span>
-          {quote.numberOfPallets ?? 0}
+          <span style={{ fontWeight: 600 }}>Load Type: </span>
+          {quote.loadType === 'non-palletized'
+            ? 'Non-Palletized'
+            : `Palletized${(quote.numberOfPallets ?? 0) > 0
+                ? ` — ${quote.numberOfPallets} pallet${quote.numberOfPallets !== 1 ? 's' : ''}`
+                : ''}`}
         </span>
         {quote.toggles?.lowBackhaul && (
           <span>
