@@ -23,7 +23,8 @@ const DEADHEAD_MODES = [
 
 const fmt     = n  => `$${Number(n).toFixed(2)}`
 const fmtRate = r  => `$${Number(r).toFixed(4)}/mi`
-const ZIP_RE  = /^\d{5}$/
+// Matches US 5-digit ZIP  OR  Canadian postal code (FSA + LDU, optional space)
+const ZIP_RE  = /^(\d{5}|[A-Za-z]\d[A-Za-z][\s]?\d[A-Za-z]\d)$/
 
 // ── Component ───────────────────────────────────────────────────────────────
 
@@ -130,7 +131,7 @@ export default function DriverQuoteForm() {
       if (!res.ok || !data.resolved) throw new Error(data.error ?? 'No result')
       setter(data.resolved)
     } catch {
-      setZipWarning(m => new Map(m).set(key, 'Could not resolve ZIP — please verify.'))
+      setZipWarning(m => new Map(m).set(key, 'Could not resolve — please verify.'))
     } finally {
       setZipResolving(s => { const n = new Set(s); n.delete(key); return n })
     }
@@ -441,7 +442,14 @@ export default function DriverQuoteForm() {
             {DEADHEAD_MODES.map(({ value, label }) => (
               <button key={value} type="button"
                 className={`deadhead-mode-btn${deadheadMode === value ? ' deadhead-mode-btn--active' : ''}`}
-                onClick={() => { setDeadheadMode(value); setDeadheadStatus('') }}>
+                onClick={() => {
+                  setDeadheadMode(value)
+                  setDeadheadStatus('')
+                  // Clear any pending deadhead ZIP resolution when switching modes
+                  clearTimeout(zipTimers.current['deadhead'])
+                  setZipWarning(m => { const n = new Map(m); n.delete('deadhead'); return n })
+                  setZipResolving(s => { const n = new Set(s); n.delete('deadhead'); return n })
+                }}>
                 {label}
               </button>
             ))}
@@ -462,15 +470,29 @@ export default function DriverQuoteForm() {
               <div className="field">
                 <label className="label">Your Current Location</label>
                 <div className="deadhead-location-row">
-                  <input className="input" placeholder="Address or ZIP code"
-                    value={deadheadOrigin} onChange={e => setDeadheadOrigin(e.target.value)} />
+                  <div className="zip-field-wrap" style={{ flex: 1 }}>
+                    <input className="input" placeholder="Address, ZIP, or postal code"
+                      value={deadheadOrigin}
+                      onChange={e => {
+                        const v = e.target.value
+                        setDeadheadOrigin(v)
+                        scheduleZipResolve('deadhead', v, setDeadheadOrigin)
+                      }} />
+                    {zipResolving.has('deadhead') && (
+                      <span className="zip-spinner"><span className="spinner spinner--dark" /></span>
+                    )}
+                  </div>
                   <button type="button" className="btn btn--outline btn--sm"
-                    onClick={calcDeadheadByAddress} disabled={deadheadLoading}>
+                    onClick={calcDeadheadByAddress}
+                    disabled={deadheadLoading || zipResolving.has('deadhead')}>
                     {deadheadLoading
                       ? <span className="spinner spinner--dark" />
                       : 'Calculate'}
                   </button>
                 </div>
+                {zipWarning.get('deadhead') && (
+                  <span className="zip-warning">{zipWarning.get('deadhead')}</span>
+                )}
               </div>
               {deadheadMiles && (
                 <div className="field" style={{ marginTop: 12 }}>
