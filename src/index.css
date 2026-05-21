@@ -330,14 +330,16 @@ body {
 /* ── DRIVER MODE TOGGLE ──────────────────────────────────────────────────── */
 
 .mode-toggle {
-  display: inline-flex;
+  display: flex;
+  width: 100%;
   border: 1.5px solid var(--gray-200);
   border-radius: var(--radius);
   overflow: hidden;
 }
 
 .mode-btn {
-  padding: 9px 32px;
+  flex: 1;
+  padding: 9px 16px;
   border: none;
   background: #fff;
   font-family: var(--font);
@@ -345,6 +347,7 @@ body {
   font-weight: 500;
   color: var(--gray-600);
   cursor: pointer;
+  text-align: center;
   transition: background 0.15s, color 0.15s;
 }
 
@@ -1813,9 +1816,7 @@ body {
   .deadhead-mode-btn       { flex: 1 1 calc(50% - 4px); }
   .deadhead-location-row   { flex-direction: column; align-items: stretch; }
 
-  /* Driver mode toggle — equal-width, full row */
-  .mode-toggle { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
-  .mode-btn    { text-align: center; }
+  /* mode-toggle is already full-width flex with equal buttons at all sizes */
 
   /* ── Load Options section ────────────────────────────────────────────────── */
 

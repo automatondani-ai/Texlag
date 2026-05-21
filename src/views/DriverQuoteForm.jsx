@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 
 // ── Static content ──────────────────────────────────────────────────────────
@@ -61,6 +61,7 @@ export default function DriverQuoteForm() {
   const [loadType,               setLoadType]               = useState('palletized')
   const [numberOfPallets,        setNumberOfPallets]        = useState('')
   const [driverAssistManualFee,  setDriverAssistManualFee]  = useState('')
+  const [driverAssistRate,       setDriverAssistRate]       = useState(25.00)
 
   // Toggles
   const [driverAssist,    setDriverAssist]    = useState(false)
@@ -82,6 +83,17 @@ export default function DriverQuoteForm() {
   const [sending,      setSending]      = useState(false)
   const [sendStatus,   setSendStatus]   = useState('')   // '' | 'ok' | 'err'
   const [sendMessage,  setSendMessage]  = useState('')
+
+  // Fetch admin-set driver assist rate once on mount for the read-only preview
+  useEffect(() => {
+    fetch('/api/rates')
+      .then(r => r.json())
+      .then(d => {
+        const r = Number(d.rates?.driverAssistPerPallet)
+        if (r > 0) setDriverAssistRate(r)
+      })
+      .catch(() => {})
+  }, [])
 
   // ── Dropoff helpers ────────────────────────────────────────────────────────
   const updateDropoff = (i, v) => {
@@ -582,9 +594,22 @@ export default function DriverQuoteForm() {
           {driverAssist && (
             loadType === 'palletized' && Number(numberOfPallets) > 0
               ? (
-                <p className="option-sub-hint">
-                  {numberOfPallets} pallet{Number(numberOfPallets) !== 1 ? 's' : ''} × admin rate
-                </p>
+                <div className="option-sub-field">
+                  <label className="label" style={{ fontSize: 12, marginBottom: 4 }}>Driver Assist Fee</label>
+                  <div className="input-prefix-wrap">
+                    <span className="prefix" style={{ color: 'var(--gray-300)' }}>$</span>
+                    <input
+                      className="input"
+                      type="text"
+                      readOnly
+                      value={(Number(numberOfPallets) * driverAssistRate).toFixed(2)}
+                      style={{ background: 'var(--gray-50, #f8fafc)', color: 'var(--gray-500)', cursor: 'default' }}
+                    />
+                  </div>
+                  <span className="hint">
+                    Calculated: {numberOfPallets} pallet{Number(numberOfPallets) !== 1 ? 's' : ''} × ${driverAssistRate.toFixed(2)}/pallet
+                  </span>
+                </div>
               )
               : (
                 <div className="option-sub-field">
