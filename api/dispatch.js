@@ -15,9 +15,8 @@
  * ensures any escaping error is still returned as JSON, never as an HTML page.
  */
 
-import { Resend }         from 'resend'
-import { renderToBuffer } from '@react-pdf/renderer'
-import { verifyToken }    from './_lib/auth.js'
+import { Resend }      from 'resend'
+import { verifyToken } from './_lib/auth.js'
 import { buildDocument, BRAND, fmt } from './_lib/buildQuotePDF.js'
 import { logAudit, AUDIT }           from './_lib/audit.js'
 import { LOGO_BASE64 }               from './_lib/logoBase64.js'
@@ -222,7 +221,7 @@ async function handleGeneratePdf(req, res) {
   let element
   try {
     console.log(tag, 'building PDF document element — logo available:', !!LOGO_BASE64)
-    element = buildDocument(quote, Number(detentionHourlyRate) || 75, LOGO_BASE64)
+    element = await buildDocument(quote, Number(detentionHourlyRate) || 75, LOGO_BASE64)
     console.log(tag, 'document element built OK')
   } catch (e) {
     console.error(tag, 'buildDocument threw:', e.message)
@@ -234,6 +233,7 @@ async function handleGeneratePdf(req, res) {
   let buffer
   try {
     console.log(tag, 'calling renderToBuffer…')
+    const { renderToBuffer } = await import('@react-pdf/renderer')
     buffer = await renderToBuffer(element)
     console.log(tag, 'renderToBuffer complete — bytes:', buffer.length)
   } catch (e) {
@@ -286,7 +286,7 @@ async function handleSendQuote(req, res, caller) {
   let element
   try {
     console.log(tag, 'building PDF document element — logo available:', !!LOGO_BASE64)
-    element = buildDocument(quote, Number(detentionHourlyRate) || 75, LOGO_BASE64)
+    element = await buildDocument(quote, Number(detentionHourlyRate) || 75, LOGO_BASE64)
     console.log(tag, 'document element built OK')
   } catch (e) {
     console.error(tag, 'buildDocument threw:', e.message)
@@ -298,6 +298,7 @@ async function handleSendQuote(req, res, caller) {
   let pdfBuffer
   try {
     console.log(tag, 'calling renderToBuffer…')
+    const { renderToBuffer } = await import('@react-pdf/renderer')
     pdfBuffer = await renderToBuffer(element)
     console.log(tag, 'renderToBuffer complete — bytes:', pdfBuffer.length)
   } catch (e) {

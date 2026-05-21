@@ -7,7 +7,6 @@
  */
 
 import { createElement as h } from 'react'
-import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer'
 import { LOGO_BASE64 } from './logoBase64.js'
 
 // ── Brand ────────────────────────────────────────────────────────────────────
@@ -42,8 +41,10 @@ const C = {
 }
 
 // ── Styles ───────────────────────────────────────────────────────────────────
+// Plain object — no @react-pdf/renderer dependency at module level.
+// StyleSheet.create() is called inside buildDocument after the dynamic import.
 
-const s = StyleSheet.create({
+const STYLES = {
   page: {
     fontFamily: 'Helvetica',
     fontSize: 9,
@@ -280,7 +281,7 @@ const s = StyleSheet.create({
     marginBottom: 2,
   },
   footerDateText: { fontSize: 7, color: C.gray400 },
-})
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -320,7 +321,9 @@ function itemQty(item) {
 
 // ── Document builder ─────────────────────────────────────────────────────────
 
-export function buildDocument(quote, detentionHourlyRate = 75, logoSrc) {
+export async function buildDocument(quote, detentionHourlyRate = 75, logoSrc) {
+  const { Document, Page, View, Text, Image, StyleSheet } = await import('@react-pdf/renderer')
+  const s = StyleSheet.create(STYLES)
   const detentionOff = !quote.toggles?.detention
   const activeItems  = Object.entries(quote.lineItems ?? {})
     .filter(([k, v]) => v !== null && k !== 'backhaulSurcharge')
