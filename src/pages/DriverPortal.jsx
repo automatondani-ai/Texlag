@@ -1,9 +1,17 @@
+import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import DriverQuoteForm from '../views/DriverQuoteForm'
+import DriverQuoteForm  from '../views/DriverQuoteForm'
+import QuoteHistoryView from '../views/QuoteHistoryView'
 import logoUrl from '../assets/texlag-logo.avif'
+
+const TABS = [
+  { key: 'form',    label: 'New Quote'      },
+  { key: 'history', label: 'Quote History'  },
+]
 
 export default function DriverPortal() {
   const { user, logout } = useAuth()
+  const [activeTab, setActiveTab] = useState('form')
 
   return (
     <>
@@ -25,7 +33,24 @@ export default function DriverPortal() {
         </div>
       </nav>
 
-      <DriverQuoteForm />
+      {/* ── Portal tab bar ────────────────────────────────────────────────── */}
+      <div className="portal-tabs">
+        <div className="portal-tabs__inner">
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              className={`portal-tab${activeTab === t.key ? ' portal-tab--active' : ''}`}
+              onClick={() => setActiveTab(t.key)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Tab content ───────────────────────────────────────────────────── */}
+      {activeTab === 'form'    && <DriverQuoteForm />}
+      {activeTab === 'history' && <QuoteHistoryView />}
     </>
   )
 }
