@@ -72,7 +72,6 @@ export default function LoginPage() {
               value={email}
               onChange={e => setEmail(e.target.value)}
               autoComplete="email"
-              autoFocus
               required
             />
           </div>

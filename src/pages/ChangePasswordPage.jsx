@@ -87,7 +87,6 @@ export default function ChangePasswordPage() {
                 placeholder="••••••••"
                 value={password}
                 onChange={e => { setPassword(e.target.value); setError('') }}
-                autoFocus
                 autoComplete="new-password"
                 required
               />

@@ -40,12 +40,14 @@ const PAGE_SIZE = 25
 export default function AuditView() {
   const { getToken } = useAuth()
 
-  const [entries,    setEntries]    = useState([])
-  const [total,      setTotal]      = useState(0)
-  const [page,       setPage]       = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [loading,    setLoading]    = useState(true)
-  const [error,      setError]      = useState('')
+  const [entries, setEntries] = useState([])
+  const [total,   setTotal]   = useState(0)
+  const [page,    setPage]    = useState(1)
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState('')
+
+  // totalPages is fully derived from total + PAGE_SIZE — no separate state needed
+  const totalPages = Math.ceil(total / PAGE_SIZE) || 1
 
   const fetchPage = useCallback(async (p) => {
     setLoading(true)
@@ -59,7 +61,6 @@ export default function AuditView() {
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
       setEntries(data.entries)
       setTotal(data.total)
-      setTotalPages(data.totalPages)
     } catch (e) {
       setError(e.message)
     } finally {
@@ -114,6 +115,7 @@ export default function AuditView() {
           {totalPages > 1 && (
             <div className="pagination">
               <button
+                type="button"
                 className="btn btn--sm btn--outline"
                 disabled={page <= 1}
                 onClick={() => setPage(p => p - 1)}
@@ -122,6 +124,7 @@ export default function AuditView() {
                 Page {page} of {totalPages} &nbsp;·&nbsp; {total} events
               </span>
               <button
+                type="button"
                 className="btn btn--sm btn--outline"
                 disabled={page >= totalPages}
                 onClick={() => setPage(p => p + 1)}

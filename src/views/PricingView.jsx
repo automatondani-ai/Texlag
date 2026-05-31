@@ -25,10 +25,10 @@ const GROUPS = [
   {
     title: 'Operating Costs',
     fields: [
-      { key: 'trailerHoldRate',     label: 'Trailer Hold Rate',                hint: 'Per-day trailer detention fee ($)'                        },
-      { key: 'gasPricePerGallon',   label: 'Gas Price Per Gallon',             hint: 'Current market fuel price'                                },
-      { key: 'mpg',                 label: 'Vehicle MPG (Miles Per Gallon)',   hint: 'Avg fuel efficiency for heavy freight — default 6 mpg', prefix: '' },
-      { key: 'speedMph',           label: 'Average Speed (mph)',              hint: 'Used to auto-calculate trip days: miles ÷ speed ÷ 11 hrs — default 65', prefix: '' },
+      { key: 'trailerHoldRate',       label: 'Trailer Hold Rate',              hint: 'Per-day trailer detention fee ($)'                        },
+      { key: 'gasPricePerGallon',     label: 'Gas Price Per Gallon',           hint: 'Current market fuel price'                                },
+      { key: 'mpg',                   label: 'Vehicle MPG (Miles Per Gallon)', hint: 'Avg fuel efficiency for heavy freight — default 6 mpg', prefix: '' },
+      { key: 'speedMph',             label: 'Average Speed (mph)',            hint: 'Used to auto-calculate trip days: miles ÷ speed ÷ 11 hrs — default 65', prefix: '' },
       { key: 'driverAssistPerPallet', label: 'Driver Assist Fee (per pallet)', hint: 'Cost per pallet when driver assist is enabled — default $25.00' },
     ],
   },
@@ -44,13 +44,19 @@ export default function PricingView() {
   const [error,   setError]   = useState('')
   const [success, setSuccess] = useState('')
 
+  // Fetch current rates on mount; abort on unmount to avoid stale state updates
   useEffect(() => {
-    fetch('/api/rates')
+    const controller = new AbortController()
+    fetch('/api/rates', {
+      headers: { Authorization: `Bearer ${getToken()}` },
+      signal: controller.signal,
+    })
       .then(r => r.json())
       .then(d => setRates(d.rates ?? {}))
-      .catch(() => setError('Failed to load rates.'))
+      .catch(e => { if (e.name !== 'AbortError') setError('Failed to load rates.') })
       .finally(() => setLoading(false))
-  }, [])
+    return () => controller.abort()
+  }, [getToken])
 
   function setField(key, val) {
     setRates(r => ({ ...r, [key]: val }))
@@ -120,11 +126,13 @@ export default function PricingView() {
             <div className="rates-grid">
               {group.fields.map(({ key, label, hint, prefix = '$' }) => (
                 <div key={key} className="field">
-                  <label className="label">{label}</label>
+                  {/* htmlFor connects label to its input via matching id */}
+                  <label className="label" htmlFor={`pricing-${key}`}>{label}</label>
                   {prefix ? (
                     <div className="input-prefix-wrap">
                       <span className="prefix">{prefix}</span>
                       <input
+                        id={`pricing-${key}`}
                         className="input"
                         type="number"
                         min="0"
@@ -135,6 +143,7 @@ export default function PricingView() {
                     </div>
                   ) : (
                     <input
+                      id={`pricing-${key}`}
                       className="input"
                       type="number"
                       min="0.1"

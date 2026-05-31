@@ -129,7 +129,6 @@ export default function ForgotPasswordPage({ onBack, onSuccess }) {
                 value={email}
                 onChange={e => { setEmail(e.target.value); setError('') }}
                 autoComplete="email"
-                autoFocus
                 required
               />
             </div>
@@ -162,7 +161,6 @@ export default function ForgotPasswordPage({ onBack, onSuccess }) {
                 maxLength={6}
                 value={code}
                 onChange={e => { setCode(e.target.value.replace(/\D/g, '')); setError('') }}
-                autoFocus
                 autoComplete="one-time-code"
                 required
               />

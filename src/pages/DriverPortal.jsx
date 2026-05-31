@@ -28,7 +28,7 @@ export default function DriverPortal() {
           <div className="nav__user">
             <span className="nav__user-name">{user.firstName} {user.lastName}</span>
             <span className="role-badge role-badge--driver">Driver</span>
-            <button className="nav__logout" onClick={logout}>Sign out</button>
+            <button type="button" className="nav__logout" onClick={logout}>Sign out</button>
           </div>
         </div>
       </nav>
@@ -39,6 +39,7 @@ export default function DriverPortal() {
           {TABS.map(t => (
             <button
               key={t.key}
+              type="button"
               className={`portal-tab${activeTab === t.key ? ' portal-tab--active' : ''}`}
               onClick={() => setActiveTab(t.key)}
             >

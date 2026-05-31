@@ -18,6 +18,28 @@ function dateParts(iso) {
   return isNaN(d) ? null : { year: d.getFullYear(), month: d.getMonth() + 1 }
 }
 
+// ── Module-scope pure function (moved from inside DriverProfile) ──────────────
+// Builds the same descriptive filename the server-side pdfFilename() helper
+// produces so the browser's Save dialog shows the right name.
+function quoteFilename(q) {
+  const extractCity = addr => {
+    if (!addr || typeof addr !== 'string') return null
+    const city = addr.split(',')[0].trim()
+    return city.length > 0 ? city : null
+  }
+  const fromCity = extractCity(q.pickup)
+  const toCity   = extractCity(
+    Array.isArray(q.dropoffs) && q.dropoffs.length > 0
+      ? q.dropoffs[q.dropoffs.length - 1]
+      : null
+  )
+  if (fromCity && toCity) {
+    const safe = s => s.replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/\s+/g, '-')
+    return `TexLag-Quote-${safe(fromCity)}-to-${safe(toCity)}-${q.quoteId}.pdf`
+  }
+  return `TexLag-Quote-${q.quoteId}.pdf`
+}
+
 // ── Summary Cards ─────────────────────────────────────────────────────────────
 
 function SummaryCards({ stats }) {
@@ -42,9 +64,8 @@ function SummaryCards({ stats }) {
 // ── Driver Profile Panel ──────────────────────────────────────────────────────
 
 function DriverProfile({ driver: initialDriver, onBack, getToken }) {
-  const [driver,      setDriver]      = useState(initialDriver)
-  const [quotes,      setQuotes]      = useState([])
-  const [total,       setTotal]       = useState(0)
+  const [driver,         setDriver]         = useState(initialDriver)
+  const [quotes,         setQuotes]         = useState([])
   const [loadingQ,       setLoadingQ]       = useState(true)
   const [errorQ,         setErrorQ]         = useState('')
   const [toggling,       setToggling]       = useState(false)
@@ -58,6 +79,9 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
   const [filterMonth, setFilterMonth] = useState('')
   const [filterYear,  setFilterYear]  = useState('')
 
+  // total is derived from the quotes array — no separate state needed
+  const total = quotes.length
+
   const fetchQuotes = useCallback(async () => {
     setLoadingQ(true)
     setErrorQ('')
@@ -68,11 +92,11 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
       )
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
-      const sorted = [...(data.quotes ?? [])].sort(
-        (a, b) => new Date(b.generatedAt) - new Date(a.generatedAt)
+      setQuotes(
+        (data.quotes ?? []).toSorted(
+          (a, b) => new Date(b.generatedAt) - new Date(a.generatedAt)
+        )
       )
-      setQuotes(sorted)
-      setTotal(data.total)
     } catch (e) {
       setErrorQ(e.message)
     } finally {
@@ -91,8 +115,8 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
       if (p) { yearSet.add(p.year); monthSet.add(p.month) }
     })
     return {
-      availableYears:  [...yearSet].sort((a, b) => b - a),
-      availableMonths: [...monthSet].sort((a, b) => a - b),
+      availableYears:  [...yearSet].toSorted((a, b) => b - a),
+      availableMonths: [...monthSet].toSorted((a, b) => a - b),
     }
   }, [quotes])
 
@@ -155,26 +179,6 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
     }
   }
 
-  // Build descriptive PDF filename matching the server-side pdfFilename() helper.
-  function quoteFilename(q) {
-    const extractCity = addr => {
-      if (!addr || typeof addr !== 'string') return null
-      const city = addr.split(',')[0].trim()
-      return city.length > 0 ? city : null
-    }
-    const fromCity = extractCity(q.pickup)
-    const toCity   = extractCity(
-      Array.isArray(q.dropoffs) && q.dropoffs.length > 0
-        ? q.dropoffs[q.dropoffs.length - 1]
-        : null
-    )
-    if (fromCity && toCity) {
-      const safe = s => s.replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/\s+/g, '-')
-      return `TexLag-Quote-${safe(fromCity)}-to-${safe(toCity)}-${q.quoteId}.pdf`
-    }
-    return `TexLag-Quote-${q.quoteId}.pdf`
-  }
-
   async function downloadQuotePDF(q) {
     setPdfError('')
     setPdfDownloading(s => new Set(s).add(q.quoteId))
@@ -211,7 +215,7 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
     <div className="driver-profile">
 
       {/* Back */}
-      <button className="profile-back-btn" onClick={onBack}>
+      <button type="button" className="profile-back-btn" onClick={onBack}>
         ← Back to Drivers
       </button>
 
@@ -225,6 +229,7 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
         </div>
         <div className="profile-header__actions">
           <button
+            type="button"
             className="btn btn--sm btn--outline"
             onClick={handleSendReset}
             disabled={resetting}
@@ -233,6 +238,7 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
             {resetting ? <><span className="spinner" style={{ borderTopColor: 'currentColor', borderColor: 'rgba(0,0,0,.15)' }} />Sending…</> : 'Send Password Reset'}
           </button>
           <button
+            type="button"
             className={`btn btn--sm ${isActive ? 'btn--danger-outline' : 'btn--outline'}`}
             onClick={handleToggle}
             disabled={toggling}
@@ -282,8 +288,6 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
         </div>
         <div className="profile-info-item">
           <div className="profile-info-item__label">Total Quotes Generated</div>
-          {/* Show the live count from the API once quotes have loaded;
-              fall back to the list-row value while the fetch is in flight. */}
           <div className="profile-info-item__value profile-info-item__value--stat">
             {loadingQ ? (driver.quoteCount ?? '…') : total}
           </div>
@@ -322,8 +326,14 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
             {quotes.length > 0 && (
               <div className="qh-filters" style={{ marginBottom: 16 }}>
                 <div className="qh-filters__group">
-                  <label className="qh-filters__label">Month</label>
-                  <select className="qh-select" value={filterMonth} onChange={e => setFilterMonth(e.target.value)}>
+                  {/* htmlFor connects to the select via matching id */}
+                  <label className="qh-filters__label" htmlFor="profile-filter-month">Month</label>
+                  <select
+                    id="profile-filter-month"
+                    className="qh-select"
+                    value={filterMonth}
+                    onChange={e => setFilterMonth(e.target.value)}
+                  >
                     <option value="">All months</option>
                     {availableMonths.map(m => (
                       <option key={m} value={String(m)}>{MONTHS[m - 1]}</option>
@@ -331,8 +341,13 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
                   </select>
                 </div>
                 <div className="qh-filters__group">
-                  <label className="qh-filters__label">Year</label>
-                  <select className="qh-select" value={filterYear} onChange={e => setFilterYear(e.target.value)}>
+                  <label className="qh-filters__label" htmlFor="profile-filter-year">Year</label>
+                  <select
+                    id="profile-filter-year"
+                    className="qh-select"
+                    value={filterYear}
+                    onChange={e => setFilterYear(e.target.value)}
+                  >
                     <option value="">All years</option>
                     {availableYears.map(y => (
                       <option key={y} value={String(y)}>{y}</option>
@@ -340,8 +355,11 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
                   </select>
                 </div>
                 {hasFilters && (
-                  <button className="btn btn--outline btn--sm qh-filters__clear"
-                    onClick={() => { setFilterMonth(''); setFilterYear('') }}>
+                  <button
+                    type="button"
+                    className="btn btn--outline btn--sm qh-filters__clear"
+                    onClick={() => { setFilterMonth(''); setFilterYear('') }}
+                  >
                     Clear filters
                   </button>
                 )}
@@ -391,6 +409,7 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
                           </td>
                           <td style={{ textAlign: 'center' }}>
                             <button
+                              type="button"
                               className="btn btn--sm btn--outline"
                               title={`Download PDF for ${q.quoteId}`}
                               disabled={downloading}
@@ -433,9 +452,9 @@ export default function DriversView() {
   const [formSuccess,   setFormSuccess]   = useState('')
 
   const [selectedDriver, setSelectedDriver] = useState(null)
-  const [toggling,       setToggling]       = useState(null)   // email currently toggling
-  const [resettingRow,   setResettingRow]   = useState(null)   // email currently sending reset
-  const [rowResetMsg,    setRowResetMsg]    = useState({})     // { email: message }
+  const [toggling,       setToggling]       = useState(null)
+  const [resettingRow,   setResettingRow]   = useState(null)
+  const [rowResetMsg,    setRowResetMsg]    = useState({})
 
   // ── Load drivers ────────────────────────────────────────────────────────────
   const loadDrivers = useCallback(async () => {
@@ -456,13 +475,10 @@ export default function DriversView() {
     }
   }, [getToken])
 
-  // Initial load
   useEffect(() => { loadDrivers() }, [loadDrivers])
 
-  // Auto-refresh every 60 s while the list view is open.
-  // Clears automatically when the driver profile is open or on unmount.
   useEffect(() => {
-    if (selectedDriver) return           // profile is open — no background polling
+    if (selectedDriver) return
     const id = setInterval(loadDrivers, 60_000)
     return () => clearInterval(id)
   }, [loadDrivers, selectedDriver])
@@ -555,10 +571,8 @@ export default function DriversView() {
   return (
     <div className="view-page">
 
-      {/* Summary cards */}
       <SummaryCards stats={stats} />
 
-      {/* Header row */}
       <div className="view-page__header view-page__header--row" style={{ marginTop: 24 }}>
         <div>
           <h2 className="view-page__title">Driver Management</h2>
@@ -568,6 +582,7 @@ export default function DriversView() {
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button
+            type="button"
             className="btn btn--outline btn--sm"
             onClick={loadDrivers}
             disabled={loadingList}
@@ -579,6 +594,7 @@ export default function DriversView() {
               : '↻ Refresh'}
           </button>
           <button
+            type="button"
             className={`btn ${showForm ? 'btn--outline' : 'btn--primary'} btn--sm`}
             onClick={() => { setShowForm(s => !s); setFormError(''); setFormSuccess('') }}
           >
@@ -587,7 +603,6 @@ export default function DriversView() {
         </div>
       </div>
 
-      {/* Global success after form closes */}
       {formSuccess && !showForm && (
         <div className="banner banner--success">{formSuccess}</div>
       )}
@@ -601,24 +616,52 @@ export default function DriversView() {
           <form onSubmit={createDriver}>
             <div className="driver-form-grid">
               <div className="field">
-                <label className="label">First Name</label>
-                <input className="input" placeholder="Jane" value={form.firstName}
-                  onChange={e => setField('firstName', e.target.value)} required />
+                {/* htmlFor + matching id associates label to input for screen readers */}
+                <label className="label" htmlFor="new-driver-first-name">First Name</label>
+                <input
+                  id="new-driver-first-name"
+                  className="input"
+                  placeholder="Jane"
+                  value={form.firstName}
+                  onChange={e => setField('firstName', e.target.value)}
+                  required
+                />
               </div>
               <div className="field">
-                <label className="label">Last Name</label>
-                <input className="input" placeholder="Smith" value={form.lastName}
-                  onChange={e => setField('lastName', e.target.value)} required />
+                <label className="label" htmlFor="new-driver-last-name">Last Name</label>
+                <input
+                  id="new-driver-last-name"
+                  className="input"
+                  placeholder="Smith"
+                  value={form.lastName}
+                  onChange={e => setField('lastName', e.target.value)}
+                  required
+                />
               </div>
               <div className="field">
-                <label className="label">Email</label>
-                <input className="input" type="email" placeholder="jane@texlag.com" value={form.email}
-                  onChange={e => setField('email', e.target.value)} required />
+                <label className="label" htmlFor="new-driver-email">Email</label>
+                <input
+                  id="new-driver-email"
+                  className="input"
+                  type="email"
+                  placeholder="jane@texlag.com"
+                  value={form.email}
+                  onChange={e => setField('email', e.target.value)}
+                  required
+                />
               </div>
               <div className="field">
-                <label className="label">Phone <span className="label-opt">(optional)</span></label>
-                <input className="input" type="tel" placeholder="+1 555 000 0000" value={form.phone}
-                  onChange={e => setField('phone', e.target.value)} />
+                <label className="label" htmlFor="new-driver-phone">
+                  Phone <span className="label-opt">(optional)</span>
+                </label>
+                <input
+                  id="new-driver-phone"
+                  className="input"
+                  type="tel"
+                  placeholder="+1 555 000 0000"
+                  value={form.phone}
+                  onChange={e => setField('phone', e.target.value)}
+                />
               </div>
               <div className="field" style={{ gridColumn: '1 / -1' }}>
                 <span className="hint">
@@ -636,10 +679,8 @@ export default function DriversView() {
         </div>
       )}
 
-      {/* Error */}
       {listError && <div className="banner banner--error">{listError}</div>}
 
-      {/* Loading */}
       {loadingList ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
           <span className="spinner spinner--dark" />
@@ -666,7 +707,11 @@ export default function DriversView() {
                 return (
                   <tr key={d.email} style={{ opacity: isActive ? 1 : 0.65 }}>
                     <td>
-                      <button className="dt-name-btn" onClick={() => setSelectedDriver(d)}>
+                      <button
+                        type="button"
+                        className="dt-name-btn"
+                        onClick={() => setSelectedDriver(d)}
+                      >
                         {d.firstName} {d.lastName}
                       </button>
                     </td>
@@ -682,6 +727,7 @@ export default function DriversView() {
                     <td>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                         <button
+                          type="button"
                           className="btn btn--sm btn--outline"
                           onClick={() => sendResetForRow(d.email)}
                           disabled={resettingRow === d.email}
@@ -690,6 +736,7 @@ export default function DriversView() {
                           {resettingRow === d.email ? '…' : 'Reset Password'}
                         </button>
                         <button
+                          type="button"
                           className={`btn btn--sm ${isActive ? 'btn--danger-outline' : 'btn--outline'}`}
                           onClick={() => toggleStatus(d.email)}
                           disabled={toggling === d.email}
@@ -700,6 +747,7 @@ export default function DriversView() {
                             : isActive ? 'Deactivate' : 'Activate'}
                         </button>
                         <button
+                          type="button"
                           className="btn btn--sm btn--outline"
                           onClick={() => setSelectedDriver(d)}
                         >

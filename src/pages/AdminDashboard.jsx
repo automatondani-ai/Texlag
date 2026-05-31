@@ -28,6 +28,7 @@ export default function AdminDashboard() {
         <div className="nav__inner">
           {/* Hamburger — visible only on mobile via CSS */}
           <button
+            type="button"
             className="sidebar-hamburger"
             aria-label="Open navigation menu"
             onClick={() => setSidebarOpen(true)}
@@ -46,7 +47,7 @@ export default function AdminDashboard() {
           <div className="nav__user">
             <span className="nav__user-name">{user.firstName} {user.lastName}</span>
             <span className="role-badge role-badge--admin">Admin</span>
-            <button className="nav__logout" onClick={logout}>Sign out</button>
+            <button type="button" className="nav__logout" onClick={logout}>Sign out</button>
           </div>
         </div>
       </nav>
@@ -70,6 +71,7 @@ export default function AdminDashboard() {
             {SIDEBAR.map(({ key, label }) => (
               <button
                 key={key}
+                type="button"
                 className={`sidebar-nav__item${section === key ? ' sidebar-nav__item--active' : ''}`}
                 onClick={() => selectSection(key)}
               >

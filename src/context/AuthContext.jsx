@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useCallback, useMemo } from 'react'
 
 const TOKEN_KEY = 'texlag_token'
 const MCP_KEY   = 'texlag_mcp'   // mustChangePassword
@@ -57,8 +57,15 @@ export function AuthProvider({ children }) {
   /** Return the raw token string for use in Authorization headers. */
   const getToken = useCallback(() => localStorage.getItem(TOKEN_KEY), [])
 
+  // Memoize the context value so consumers only re-render when something
+  // actually changes, not on every AuthProvider render.
+  const contextValue = useMemo(
+    () => ({ user, login, logout, getToken, mustChangePassword, clearPasswordFlag }),
+    [user, login, logout, getToken, mustChangePassword, clearPasswordFlag]
+  )
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, getToken, mustChangePassword, clearPasswordFlag }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   )

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useReducer } from 'react'
 import { useAuth } from '../context/AuthContext'
 
 const fmt    = n  => `$${Number(n ?? 0).toFixed(2)}`
@@ -25,41 +25,78 @@ function fmtDate(iso) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+// ── Fetch state reducer ────────────────────────────────────────────────────────
+// Consolidates the 5 separate setState calls that were in the fetch effect into
+// a single atomic dispatch, eliminating intermediate inconsistent renders.
+
+function fetchReducer(state, action) {
+  switch (action.type) {
+    case 'LOADING':
+      return { ...state, loading: true, error: '' }
+    case 'SUCCESS':
+      return { loading: false, error: '', quotes: action.quotes }
+    case 'ERROR':
+      return { loading: false, error: action.error, quotes: [] }
+    case 'PATCH':
+      return {
+        ...state,
+        quotes: state.quotes.map(q =>
+          q.quoteId === action.quoteId ? action.quote : q
+        ),
+      }
+    case 'REVERT':
+      return {
+        ...state,
+        quotes: state.quotes.map(q =>
+          q.quoteId === action.quoteId ? { ...q, won: action.won } : q
+        ),
+      }
+    default:
+      return state
+  }
+}
+
 export default function QuoteHistoryView() {
   const { getToken } = useAuth()
 
-  const [quotes,      setQuotes]      = useState([])
-  const [loading,     setLoading]     = useState(true)
-  const [error,       setError]       = useState('')
-  const [wonUpdating, setWonUpdating] = useState(() => new Set())   // quoteIds in-flight
+  const [fetchState, dispatchFetch] = useReducer(fetchReducer, {
+    quotes:  [],
+    loading: true,
+    error:   '',
+  })
+  const { quotes, loading, error } = fetchState
+
+  const [wonUpdating, setWonUpdating] = useState(() => new Set())
 
   // Filter state
-  const [filterMonth, setFilterMonth] = useState('')   // '' | '1'..'12'
-  const [filterYear,  setFilterYear]  = useState('')   // '' | '2025'..'2xxx'
+  const [filterMonth, setFilterMonth] = useState('')
+  const [filterYear,  setFilterYear]  = useState('')
 
-  // ── Fetch ─────────────────────────────────────────────────────────────────
+  // ── Fetch — AbortController cancels the in-flight request on unmount ──────
   useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    setError('')
+    const controller = new AbortController()
+    dispatchFetch({ type: 'LOADING' })
 
     fetch('/api/driver/quotes', {
       headers: { Authorization: `Bearer ${getToken()}` },
+      signal:  controller.signal,
     })
       .then(r => r.json())
       .then(d => {
-        if (cancelled) return
         if (d.error) throw new Error(d.error)
         // Sort newest first by generatedAt (should already be, but guarantee)
-        const sorted = [...(d.quotes ?? [])].sort(
-          (a, b) => new Date(b.generatedAt) - new Date(a.generatedAt)
-        )
-        setQuotes(sorted)
+        dispatchFetch({
+          type:   'SUCCESS',
+          quotes: (d.quotes ?? []).toSorted(
+            (a, b) => new Date(b.generatedAt) - new Date(a.generatedAt)
+          ),
+        })
       })
-      .catch(e => { if (!cancelled) setError(e.message) })
-      .finally(() => { if (!cancelled) setLoading(false) })
+      .catch(e => {
+        if (e.name !== 'AbortError') dispatchFetch({ type: 'ERROR', error: e.message })
+      })
 
-    return () => { cancelled = true }
+    return () => controller.abort()
   }, [getToken])
 
   // ── Derived filter options ────────────────────────────────────────────────
@@ -74,8 +111,8 @@ export default function QuoteHistoryView() {
       }
     })
     return {
-      availableYears:  [...yearSet].sort((a, b) => b - a),
-      availableMonths: [...monthSet].sort((a, b) => a - b),
+      availableYears:  [...yearSet].toSorted((a, b) => b - a),
+      availableMonths: [...monthSet].toSorted((a, b) => a - b),
     }
   }, [quotes])
 
@@ -107,7 +144,7 @@ export default function QuoteHistoryView() {
     const next = !currentWon
 
     // Optimistic update
-    setQuotes(qs => qs.map(q => q.quoteId === quoteId ? { ...q, won: next } : q))
+    dispatchFetch({ type: 'PATCH', quoteId, quote: { ...quotes.find(q => q.quoteId === quoteId), won: next } })
     setWonUpdating(s => new Set(s).add(quoteId))
 
     try {
@@ -119,10 +156,10 @@ export default function QuoteHistoryView() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
       // Reconcile with server response
-      setQuotes(qs => qs.map(q => q.quoteId === quoteId ? data.quote : q))
+      dispatchFetch({ type: 'PATCH', quoteId, quote: data.quote })
     } catch (e) {
       // Revert on failure
-      setQuotes(qs => qs.map(q => q.quoteId === quoteId ? { ...q, won: currentWon } : q))
+      dispatchFetch({ type: 'REVERT', quoteId, won: currentWon })
       console.error('[QuoteHistory] toggleWon error:', e.message)
     } finally {
       setWonUpdating(s => { const n = new Set(s); n.delete(quoteId); return n })
@@ -175,8 +212,10 @@ export default function QuoteHistoryView() {
       {quotes.length > 0 && (
         <div className="qh-filters">
           <div className="qh-filters__group">
-            <label className="qh-filters__label">Month</label>
+            {/* htmlFor connects to the select via matching id */}
+            <label className="qh-filters__label" htmlFor="qh-filter-month">Month</label>
             <select
+              id="qh-filter-month"
               className="qh-select"
               value={filterMonth}
               onChange={e => setFilterMonth(e.target.value)}
@@ -189,8 +228,9 @@ export default function QuoteHistoryView() {
           </div>
 
           <div className="qh-filters__group">
-            <label className="qh-filters__label">Year</label>
+            <label className="qh-filters__label" htmlFor="qh-filter-year">Year</label>
             <select
+              id="qh-filter-year"
               className="qh-select"
               value={filterYear}
               onChange={e => setFilterYear(e.target.value)}
@@ -203,7 +243,7 @@ export default function QuoteHistoryView() {
           </div>
 
           {hasFilters && (
-            <button className="btn btn--outline btn--sm qh-filters__clear" onClick={clearFilters}>
+            <button type="button" className="btn btn--outline btn--sm qh-filters__clear" onClick={clearFilters}>
               Clear filters
             </button>
           )}
@@ -225,9 +265,9 @@ export default function QuoteHistoryView() {
       ) : (
         <div className="qh-list">
           {filtered.map(q => {
-            const from   = cityOf(q.pickup)
-            const to     = cityOf(q.dropoffs?.[q.dropoffs.length - 1])
-            const isWon  = !!q.won
+            const from     = cityOf(q.pickup)
+            const to       = cityOf(q.dropoffs?.[q.dropoffs.length - 1])
+            const isWon    = !!q.won
             const inFlight = wonUpdating.has(q.quoteId)
 
             return (
@@ -249,6 +289,7 @@ export default function QuoteHistoryView() {
                 <div className="qh-row__right">
                   <div className="qh-row__amount">{fmt(q.brokerTotal ?? q.finalQuote)}</div>
                   <button
+                    type="button"
                     className={`qh-won-btn${isWon ? ' qh-won-btn--on' : ''}`}
                     onClick={() => toggleWon(q.quoteId, isWon)}
                     disabled={inFlight}
