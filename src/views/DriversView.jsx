@@ -182,7 +182,7 @@ function DriverProfile({ driver: initialDriver, onBack, getToken }) {
       const res = await fetch('/api/dispatch', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body:    JSON.stringify({ action: 'generate-pdf', quote: q }),
+        body:    JSON.stringify({ action: 'generate-pdf', quoteId: q.quoteId }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))

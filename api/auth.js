@@ -9,12 +9,20 @@
  *   action: 'reset-password'   — validate code and set new password
  */
 
-import bcrypt      from 'bcryptjs'
-import jwt         from 'jsonwebtoken'
-import { Resend }  from 'resend'
-import redis       from './_lib/redis.js'
-import { signToken, verifyToken } from './_lib/auth.js'
-import { logAudit, AUDIT }        from './_lib/audit.js'
+import bcrypt             from 'bcryptjs'
+import jwt                from 'jsonwebtoken'
+import { randomInt }      from 'crypto'
+import { Resend }         from 'resend'
+import redis              from './_lib/redis.js'
+import { signToken, verifyToken, requireAuth } from './_lib/auth.js'
+import { logAudit, AUDIT }                     from './_lib/audit.js'
+import { setSecurityHeaders }                  from './_lib/headers.js'
+import {
+  getRateLimitCount,
+  incrementRateLimit,
+  clearRateLimit,
+  isRateLimited,
+} from './_lib/rateLimit.js'
 
 // ── Shared constants ──────────────────────────────────────────────────────────
 
@@ -22,6 +30,9 @@ const DEFAULT_PASSWORD = 'Password@123'
 const VALID_ROLES      = ['admin', 'driver']
 const EMAIL_RE         = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PHONE_RE         = /^\+?[\d\s\-().]{7,20}$/
+
+const MAX_NAME_LEN  = 50
+const MAX_EMAIL_LEN = 254   // RFC 5321
 
 // Pre-generated bcrypt hash used when a user is not found so response time is
 // indistinguishable from a real failed-password attempt (timing safety).
@@ -48,6 +59,16 @@ async function handleLogin(req, res) {
 
   const normalizedEmail = email.toLowerCase().trim()
 
+  // ── Brute-force guard ───────────────────────────────────────────────────────
+  // Block after 5 consecutive failures for this email within 15 minutes.
+  const failKey   = `login_fail:${normalizedEmail}`
+  const failCount = await getRateLimitCount(failKey)
+  if (failCount >= 5) {
+    return res.status(429).json({
+      error: 'Too many failed login attempts. Please try again in 15 minutes.',
+    })
+  }
+
   let user
   try {
     user = await redis.get(`users:${normalizedEmail}`)
@@ -60,12 +81,17 @@ async function handleLogin(req, res) {
   const match = await bcrypt.compare(password, hashToCheck)
 
   if (!user || !match) {
+    // Record failure; window = 15 min (900 s)
+    await incrementRateLimit(failKey, 900)
     return res.status(401).json({ error: 'Invalid email or password' })
   }
 
   if (user.active === false) {
     return res.status(403).json({ error: 'Account deactivated — contact your administrator' })
   }
+
+  // Successful login — clear the failure counter
+  await clearRateLimit(failKey)
 
   const claims = {
     email:     user.email,
@@ -243,14 +269,21 @@ async function handleRegister(req, res) {
     role  = 'driver',
   } = req.body ?? {}
 
-  if (!email || !EMAIL_RE.test(String(email).trim())) {
-    return res.status(400).json({ error: 'A valid `email` is required' })
+  // ── Input validation ────────────────────────────────────────────────────────
+  if (!email || typeof email !== 'string' || String(email).length > MAX_EMAIL_LEN || !EMAIL_RE.test(String(email).trim())) {
+    return res.status(400).json({ error: 'A valid `email` is required (max 254 chars)' })
   }
   if (!firstName || typeof firstName !== 'string' || !firstName.trim()) {
     return res.status(400).json({ error: '`firstName` is required' })
   }
+  if (firstName.trim().length > MAX_NAME_LEN) {
+    return res.status(400).json({ error: `\`firstName\` must be ${MAX_NAME_LEN} characters or fewer` })
+  }
   if (!lastName || typeof lastName !== 'string' || !lastName.trim()) {
     return res.status(400).json({ error: '`lastName` is required' })
+  }
+  if (lastName.trim().length > MAX_NAME_LEN) {
+    return res.status(400).json({ error: `\`lastName\` must be ${MAX_NAME_LEN} characters or fewer` })
   }
   if (phone && !PHONE_RE.test(String(phone).trim())) {
     return res.status(400).json({ error: '`phone` format is invalid' })
@@ -310,6 +343,7 @@ async function handleRegister(req, res) {
 // ── action: 'change-password' ─────────────────────────────────────────────────
 
 async function handleChangePassword(req, res) {
+  // Use requireAuth so deactivated accounts are blocked and we get the Redis user
   let caller
   try {
     caller = verifyToken(req)
@@ -344,6 +378,8 @@ async function handleChangePassword(req, res) {
 
   const passwordHash = await bcrypt.hash(newPassword, 12)
 
+  // Store passwordChangedAt so requireAuth can invalidate tokens issued before
+  // this moment — effectively logging out all other sessions for this account.
   const updated = {
     ...user,
     passwordHash,
@@ -458,6 +494,15 @@ async function handleForgotPassword(req, res) {
 
   const normalizedEmail = String(email).toLowerCase().trim()
 
+  // ── Rate limit: max 3 requests per email per hour ───────────────────────────
+  const limited = await isRateLimited(`forgot_pw:${normalizedEmail}`, 3, 3600)
+  if (limited) {
+    // Return 200 to avoid leaking whether the email exists, but include a
+    // Retry-After hint in the header for clients that inspect it.
+    res.setHeader('Retry-After', '3600')
+    return res.status(429).json({ error: 'Too many requests. Please try again later.' })
+  }
+
   // Look up the user — we need their first name for the email
   let user
   try {
@@ -471,8 +516,8 @@ async function handleForgotPassword(req, res) {
     return res.status(200).json({ success: true })
   }
 
-  // Generate a secure 6-digit code
-  const code = String(Math.floor(100000 + Math.random() * 900000))
+  // Generate a cryptographically secure 6-digit code
+  const code = String(randomInt(100000, 1000000))
 
   // Store with 15-minute TTL (900 seconds)
   try {
@@ -545,18 +590,16 @@ async function handleResetPassword(req, res) {
     return res.status(502).json({ error: 'Database error' })
   }
 
-  // Validate code (key expired → storedCode is null)
-  if (!storedCode) {
-    return res.status(400).json({ error: 'Reset code has expired or is invalid. Request a new one.' })
-  }
-  if (String(code).trim() !== String(storedCode)) {
-    return res.status(400).json({ error: 'Incorrect reset code.' })
+  // Return the same generic error for both expired and wrong code to prevent
+  // distinguishing between "code doesn't exist" and "code is wrong".
+  if (!storedCode || String(code).trim() !== String(storedCode)) {
+    return res.status(400).json({ error: 'Reset code is invalid or has expired. Request a new one.' })
   }
   if (!user) {
     return res.status(404).json({ error: 'User not found' })
   }
 
-  // Hash and save
+  // Hash and save; record passwordChangedAt to invalidate existing sessions
   const passwordHash = await bcrypt.hash(newPassword, 12)
 
   const updated = {
@@ -589,6 +632,8 @@ async function handleResetPassword(req, res) {
 // ── Router ────────────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
+  setSecurityHeaders(res)
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }

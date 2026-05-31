@@ -8,12 +8,14 @@
  *   POST /api/admin/drivers  body: { action: 'toggle-status', email } — toggle active flag
  */
 
-import redis from '../_lib/redis.js'
-import { requireAdmin } from '../_lib/auth.js'
+import redis              from '../_lib/redis.js'
+import { requireAdmin }  from '../_lib/auth.js'
 import { logAudit, AUDIT } from '../_lib/audit.js'
-import { k } from '../_lib/keys.js'
+import { k }              from '../_lib/keys.js'
+import { setSecurityHeaders } from '../_lib/headers.js'
 
 const PAGE_SIZE = 15
+const EMAIL_RE  = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 // ── GET: list drivers ─────────────────────────────────────────────────────────
 
@@ -32,7 +34,7 @@ async function handleList(req, res) {
 
     const drivers = records
       .filter(u => u && u.role === 'driver')
-      .map(({ passwordHash: _, ...u }) => u)
+      .map(({ passwordHash: _, ...u }) => u)   // never return password hash
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
 
     // Fetch per-driver quote counts + platform total in one parallel batch
@@ -68,6 +70,11 @@ async function handleQuotes(req, res) {
 
   if (!email || typeof email !== 'string' || !email.trim()) {
     return res.status(400).json({ error: '`email` query param is required' })
+  }
+
+  // Validate email format before constructing any Redis key
+  if (!EMAIL_RE.test(email.trim())) {
+    return res.status(400).json({ error: '`email` must be a valid email address' })
   }
 
   const normalizedEmail = email.toLowerCase().trim()
@@ -111,6 +118,9 @@ async function handleToggleStatus(req, res, admin) {
   if (!email || typeof email !== 'string' || !email.trim()) {
     return res.status(400).json({ error: '`email` is required' })
   }
+  if (!EMAIL_RE.test(String(email).trim())) {
+    return res.status(400).json({ error: '`email` must be a valid email address' })
+  }
 
   const normalizedEmail = email.toLowerCase().trim()
 
@@ -128,7 +138,6 @@ async function handleToggleStatus(req, res, admin) {
     return res.status(400).json({ error: 'Can only toggle status of driver accounts' })
   }
 
-  // Toggle: undefined/true → false, false → true
   const newActive = user.active === false
 
   const updated = { ...user, active: newActive }
@@ -154,7 +163,9 @@ async function handleToggleStatus(req, res, admin) {
 // ── Router ────────────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
-  const admin = requireAdmin(req, res)
+  setSecurityHeaders(res)
+
+  const admin = await requireAdmin(req, res)
   if (!admin) return
 
   // ── GET ───────────────────────────────────────────────────────────────────────

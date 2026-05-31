@@ -1,9 +1,20 @@
-import redis from './_lib/redis.js'
-import { verifyToken } from './_lib/auth.js'
-import { logAudit, AUDIT } from './_lib/audit.js'
-import { k } from './_lib/keys.js'
+import redis                  from './_lib/redis.js'
+import { requireAuth }        from './_lib/auth.js'
+import { logAudit, AUDIT }   from './_lib/audit.js'
+import { k }                  from './_lib/keys.js'
+import { setSecurityHeaders } from './_lib/headers.js'
+import { isRateLimited }      from './_lib/rateLimit.js'
 
 const DISTANCE_MATRIX_URL = 'https://maps.googleapis.com/maps/api/distancematrix/json'
+
+// ── Input limits ─────────────────────────────────────────────────────────────
+
+const MAX_LOCATION_LEN   = 200   // chars per address string
+const MAX_DROPOFFS       = 3     // maximum number of drop-off stops
+const MAX_DEADHEAD_MILES = 3000
+const MAX_HOLD_DAYS      = 30
+const MAX_PALLETS        = 999
+const MAX_DETENTION_AMT  = 10_000
 
 // ── Distance Matrix ─────────────────────────────────────────────────────────
 
@@ -72,16 +83,20 @@ const r2 = n => Math.round(n * 100) / 100
 // ── Handler ─────────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
+  setSecurityHeaders(res)
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // ── Auth: any valid JWT (admin or driver) ───────────────────────────────────
-  let caller
-  try {
-    caller = verifyToken(req)
-  } catch (e) {
-    return res.status(e.status ?? 401).json({ error: e.message })
+  // ── Auth: verify JWT, active flag, and token-invalidation-after-pw-change ──
+  const caller = await requireAuth(req, res)
+  if (!caller) return
+
+  // ── Per-user rate limit: max 60 quotes per hour ─────────────────────────────
+  const limited = await isRateLimited(`quote_rate:${caller.email}`, 60, 3600)
+  if (limited) {
+    return res.status(429).json({ error: 'Rate limit exceeded. Maximum 60 quotes per hour.' })
   }
 
   // ── Parse body ──────────────────────────────────────────────────────────────
@@ -103,12 +118,20 @@ export default async function handler(req, res) {
   if (!pickup || typeof pickup !== 'string' || !pickup.trim()) {
     return res.status(400).json({ error: '`pickup` must be a non-empty string' })
   }
-  if (
-    !Array.isArray(dropoffs) ||
-    dropoffs.length === 0 ||
-    dropoffs.some(d => typeof d !== 'string' || !d.trim())
-  ) {
+  if (pickup.trim().length > MAX_LOCATION_LEN) {
+    return res.status(400).json({ error: `\`pickup\` must be ${MAX_LOCATION_LEN} characters or fewer` })
+  }
+  if (!Array.isArray(dropoffs) || dropoffs.length === 0) {
     return res.status(400).json({ error: '`dropoffs` must be a non-empty array of strings' })
+  }
+  if (dropoffs.length > MAX_DROPOFFS) {
+    return res.status(400).json({ error: `Maximum ${MAX_DROPOFFS} drop-off stops are allowed` })
+  }
+  if (dropoffs.some(d => typeof d !== 'string' || !d.trim())) {
+    return res.status(400).json({ error: '`dropoffs` must be a non-empty array of strings' })
+  }
+  if (dropoffs.some(d => d.trim().length > MAX_LOCATION_LEN)) {
+    return res.status(400).json({ error: `Each drop-off must be ${MAX_LOCATION_LEN} characters or fewer` })
   }
   if (!['interstate', 'intrastate'].includes(jurisdiction)) {
     return res.status(400).json({ error: '`jurisdiction` must be "interstate" or "intrastate"' })
@@ -116,16 +139,42 @@ export default async function handler(req, res) {
   if (!['solo', 'team'].includes(driverMode)) {
     return res.status(400).json({ error: '`driverMode` must be "solo" or "team"' })
   }
+  if (!['palletized', 'non-palletized'].includes(loadType)) {
+    return res.status(400).json({ error: '`loadType` must be "palletized" or "non-palletized"' })
+  }
+
+  // Numeric range validation
+  const rawDeadhead  = Number(deadheadMiles)
+  const rawHoldDays  = Number(trailerHoldDays)
+  const rawPallets   = Number(numberOfPallets)
+  const rawManualFee = Number(driverAssistManualFee)
+  const rawDetention = Number(extras?.detentionAmount ?? 0)
+
+  if (!Number.isFinite(rawDeadhead)  || rawDeadhead  < 0 || rawDeadhead  > MAX_DEADHEAD_MILES) {
+    return res.status(400).json({ error: `\`deadheadMiles\` must be 0–${MAX_DEADHEAD_MILES}` })
+  }
+  if (!Number.isFinite(rawHoldDays)  || rawHoldDays  < 0 || rawHoldDays  > MAX_HOLD_DAYS) {
+    return res.status(400).json({ error: `\`trailerHoldDays\` must be 0–${MAX_HOLD_DAYS}` })
+  }
+  if (!Number.isFinite(rawPallets)   || rawPallets   < 0 || rawPallets   > MAX_PALLETS) {
+    return res.status(400).json({ error: `\`numberOfPallets\` must be 0–${MAX_PALLETS}` })
+  }
+  if (!Number.isFinite(rawManualFee) || rawManualFee < 0 || rawManualFee > MAX_DETENTION_AMT) {
+    return res.status(400).json({ error: `\`driverAssistManualFee\` must be 0–${MAX_DETENTION_AMT}` })
+  }
+  if (!Number.isFinite(rawDetention) || rawDetention < 0 || rawDetention > MAX_DETENTION_AMT) {
+    return res.status(400).json({ error: `\`extras.detentionAmount\` must be 0–${MAX_DETENTION_AMT}` })
+  }
 
   const apiKey = process.env.GOOGLE_MAPS_API_KEY
-  if (!apiKey) return res.status(500).json({ error: 'GOOGLE_MAPS_API_KEY is not configured' })
+  if (!apiKey) return res.status(500).json({ error: 'Server configuration error' })
 
   // ── Normalise inputs ────────────────────────────────────────────────────────
   const { driverAssist = false, detention = false, lowBackhaul = false, partialBackhaul = false, hazmat = false } = toggles
-  const numPallets      = Math.max(0, Number(numberOfPallets) || 0)
-  const detentionFee    = detention ? Math.max(0, Number(extras.detentionAmount) || 0) : 0
-  const numHoldDays     = Math.max(0, Number(trailerHoldDays) || 0)
-  const numDeadhead     = Math.max(0, Number(deadheadMiles)   || 0)
+  const numPallets   = Math.max(0, rawPallets)
+  const detentionFee = detention ? Math.max(0, rawDetention) : 0
+  const numHoldDays  = Math.max(0, rawHoldDays)
+  const numDeadhead  = Math.max(0, rawDeadhead)
 
   // ── Parallel fetch: route miles + rates ─────────────────────────────────────
   let totalMiles, legs, rates
@@ -139,56 +188,31 @@ export default async function handler(req, res) {
   }
 
   // ── Auto-calculate trip days ─────────────────────────────────────────────────
-  //
-  // Trip hours = Total Route Miles ÷ Average Speed (mph)
-  // Trip days  = Math.ceil(Trip hours ÷ 11)   [11 hrs = HOS daily driving limit]
-  // Minimum 1 day always (even sub-day loads still occupy one work day).
   const speed       = Math.max(1, Number(rates.speed_mph) || 65)
   const tripHours   = totalMiles / speed
   const numTripDays = Math.max(1, Math.ceil(tripHours / 11))
 
   // ── Select jurisdiction-based rates ─────────────────────────────────────────
-  const driverBaseCpm  = jurisdiction === 'interstate'
-    ? rates.interstate_cpm
-    : rates.intrastate_cpm
-  const brokerBaseCpm  = jurisdiction === 'interstate'
-    ? rates.interstate_broker_cpm
-    : rates.intrastate_broker_cpm
-  const truckRate      = jurisdiction === 'interstate'
-    ? rates.interstate_truck_rate
-    : rates.intrastate_truck_rate
-  const insuranceRate  = jurisdiction === 'interstate'
-    ? rates.interstate_insurance_rate
-    : rates.intrastate_insurance_rate
-  const hazmatRate     = jurisdiction === 'interstate'
-    ? rates.interstate_hazmat_rate
-    : rates.intrastate_hazmat_rate
+  const driverBaseCpm  = jurisdiction === 'interstate' ? rates.interstate_cpm        : rates.intrastate_cpm
+  const brokerBaseCpm  = jurisdiction === 'interstate' ? rates.interstate_broker_cpm : rates.intrastate_broker_cpm
+  const truckRate      = jurisdiction === 'interstate' ? rates.interstate_truck_rate  : rates.intrastate_truck_rate
+  const insuranceRate  = jurisdiction === 'interstate' ? rates.interstate_insurance_rate : rates.intrastate_insurance_rate
+  const hazmatRate     = jurisdiction === 'interstate' ? rates.interstate_hazmat_rate  : rates.intrastate_hazmat_rate
   const holdRate           = rates.trailer_hold_rate
   const gasRate            = rates.gas_price_per_gallon
-  const mpg                = Math.max(0.1, Number(rates.mpg) || 6)   // guard against zero
+  const mpg                = Math.max(0.1, Number(rates.mpg) || 6)
   const driverAssistRate   = Math.max(0, Number(rates.driver_assist_per_pallet) || 25)
-  const manualFee          = Math.max(0, Number(driverAssistManualFee) || 0)
+  const manualFee          = Math.max(0, rawManualFee)
   const useManualFee       = loadType === 'non-palletized' || numPallets === 0
   const driverAssistFee    = driverAssist
     ? (useManualFee ? r2(manualFee) : r2(numPallets * driverAssistRate))
     : 0
 
-  // Team loads: both CPMs are doubled; internal always single-driver basis
+  // Team loads: both CPMs are doubled
   const brokerCpm  = driverMode === 'team' ? r2(brokerBaseCpm * 2) : brokerBaseCpm
   const driverCpm  = driverMode === 'team' ? r2(driverBaseCpm * 2) : driverBaseCpm
 
-  // ── Broker-facing formula (shown to driver and on PDF) ───────────────────────
-  //
-  // Core Subtotal = (Total Miles      × Broker CPM)
-  //              + (Trip Days         × Truck Rate)
-  //              + (Trip Days         × Insurance Rate)
-  //              + (Trip Days         × Hazmat Rate)   [if hazmat toggle]
-  //              + (Trailer Hold Days × Hold Rate)
-  //              + (Deadhead Miles    × Broker CPM)
-  //              + Driver Assist Fee
-  //
-  // Broker Total  = Core Subtotal + Gas Surcharge + Detention Fee [+ Backhaul Gas]
-
+  // ── Broker-facing formula ───────────────────────────────────────────────────
   const cpmMileage      = r2(totalMiles * brokerCpm)
   const truckCharge     = r2(numTripDays * truckRate)
   const insuranceCharge = r2(numTripDays * insuranceRate)
@@ -198,72 +222,48 @@ export default async function handler(req, res) {
   const gasSurcharge    = r2((totalMiles / mpg) * gasRate)
 
   const coreSubtotal = r2(
-    cpmMileage +
-    truckCharge +
-    insuranceCharge +
-    hazmatCharge +
-    holdCharge +
-    deadheadCharge +
-    driverAssistFee
+    cpmMileage + truckCharge + insuranceCharge + hazmatCharge +
+    holdCharge + deadheadCharge + driverAssistFee
   )
 
-  // Backhaul surcharge: full gas again (default) or half gas (partial)
   const backhaulGas = lowBackhaul
     ? (partialBackhaul ? r2(gasSurcharge / 2) : gasSurcharge)
     : 0
   const finalQuote  = r2(coreSubtotal + gasSurcharge + detentionFee + backhaulGas)
 
   // ── Internal driver-cost calculation ─────────────────────────────────────────
-  //
-  // Full cost using Driver CPM (not Broker CPM) for all mileage charges.
-  // Includes every cost component: gas, driver assist, detention, hazmat,
-  // trailer hold, and backhaul surcharge — because these are all real costs
-  // incurred on the load regardless of how they are labelled on the broker quote.
-  const ic_routeMiles     = r2(totalMiles  * driverBaseCpm)
-  const ic_deadhead       = r2(numDeadhead * driverBaseCpm)
-  const ic_truckCharge    = r2(numTripDays * truckRate)
-  const ic_insurance      = r2(numTripDays * insuranceRate)
-  const ic_gas            = r2((totalMiles / mpg) * gasRate)
-  const ic_driverAssist   = driverAssist
+  const ic_routeMiles   = r2(totalMiles  * driverBaseCpm)
+  const ic_deadhead     = r2(numDeadhead * driverBaseCpm)
+  const ic_truckCharge  = r2(numTripDays * truckRate)
+  const ic_insurance    = r2(numTripDays * insuranceRate)
+  const ic_gas          = r2((totalMiles / mpg) * gasRate)
+  const ic_driverAssist = driverAssist
     ? (useManualFee ? r2(manualFee) : r2(numPallets * driverAssistRate))
     : 0
-  const ic_detention      = detention    ? detentionFee : 0
-  const ic_hazmat         = hazmat       ? r2(numTripDays * hazmatRate) : 0
-  const ic_holdCharge     = r2(numHoldDays * holdRate)
-  const ic_backhaulGas    = lowBackhaul
+  const ic_detention    = detention ? detentionFee : 0
+  const ic_hazmat       = hazmat    ? r2(numTripDays * hazmatRate) : 0
+  const ic_holdCharge   = r2(numHoldDays * holdRate)
+  const ic_backhaulGas  = lowBackhaul
     ? (partialBackhaul ? r2(ic_gas / 2) : ic_gas)
     : 0
 
   const internalDriverCost = r2(
-    ic_routeMiles +
-    ic_deadhead +
-    ic_truckCharge +
-    ic_insurance +
-    ic_gas +
-    ic_driverAssist +
-    ic_detention +
-    ic_hazmat +
-    ic_holdCharge +
-    ic_backhaulGas
+    ic_routeMiles + ic_deadhead + ic_truckCharge + ic_insurance +
+    ic_gas + ic_driverAssist + ic_detention + ic_hazmat +
+    ic_holdCharge + ic_backhaulGas
   )
 
   // ── Generate quote ID: YYYYMMDD-NNN ────────────────────────────────────────
-  //
-  // Atomically increments a per-day counter in Redis.  Counter key includes the
-  // date, so it resets automatically each new day with no cron or cleanup needed.
-  // incr() returns 1 on the first call for a new key, giving 001 as the first
-  // ID each day.  We only reach here after validation + route fetch both passed,
-  // so a Maps failure never burns a sequence number.
   let quoteId
   try {
-    const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')  // YYYYMMDD
+    const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
     const seq  = await redis.incr(k.quoteCounter(date))
     quoteId    = `${date}-${String(seq).padStart(3, '0')}`
   } catch {
     return res.status(502).json({ error: 'Failed to generate quote ID' })
   }
 
-  // ── Debug logging (visible in Vercel function logs) ─────────────────────────
+  // ── Debug logging ────────────────────────────────────────────────────────────
   console.log(`[quote:${quoteId}] Internal cost breakdown:`, {
     routeMiles:   `${r2(totalMiles)} mi × $${driverBaseCpm}/mi = $${ic_routeMiles}`,
     deadhead:     numDeadhead > 0 ? `${numDeadhead} mi × $${driverBaseCpm}/mi = $${ic_deadhead}` : 'n/a',
@@ -273,23 +273,19 @@ export default async function handler(req, res) {
     driverAssist: driverAssist
       ? (useManualFee ? `flat fee $${ic_driverAssist}` : `${numPallets} pallets × $${driverAssistRate}/pallet = $${ic_driverAssist}`)
       : 'off',
-    detention:    detention    ? `$${ic_detention}` : 'off',
-    hazmat:       hazmat       ? `${numTripDays} day(s) × $${hazmatRate}/day = $${ic_hazmat}` : 'off',
+    detention:    detention ? `$${ic_detention}` : 'off',
+    hazmat:       hazmat    ? `${numTripDays} day(s) × $${hazmatRate}/day = $${ic_hazmat}` : 'off',
     holdCharge:   numHoldDays > 0 ? `${numHoldDays} day(s) × $${holdRate}/day = $${ic_holdCharge}` : 'n/a',
-    backhaulGas:  lowBackhaul  ? `${partialBackhaul ? '50% partial' : 'full'} = $${ic_backhaulGas}` : 'off',
+    backhaulGas:  lowBackhaul ? `${partialBackhaul ? '50% partial' : 'full'} = $${ic_backhaulGas}` : 'off',
     TOTAL:        `$${internalDriverCost}`,
   })
 
   // ── Build full response payload ─────────────────────────────────────────────
-  //
-  // The payload is constructed once and used for both the HTTP response and the
-  // Redis snapshot so that admins can reconstruct a complete PDF at any time.
   const pl          = pickup.trim()
   const dl          = dropoffs.map(d => d.trim())
   const generatedAt = new Date().toISOString()
 
   const quotePayload = {
-    // ── Identity ────────────────────────────────────────────────────────────
     quoteId,
     generatedAt,
     driver: {
@@ -297,8 +293,6 @@ export default async function handler(req, res) {
       firstName: caller.firstName,
       lastName:  caller.lastName,
     },
-
-    // ── Route ───────────────────────────────────────────────────────────────
     pickup:       pl,
     dropoffs:     dl,
     jurisdiction,
@@ -308,19 +302,13 @@ export default async function handler(req, res) {
       to:    dl[i],
       miles: r2(m),
     })),
-
-    // ── Options ─────────────────────────────────────────────────────────────
     driverMode,
     loadType,
     tripDays:        numTripDays,
     numberOfPallets: numPallets,
     toggles: { driverAssist, detention, lowBackhaul, partialBackhaul, hazmat },
-
-    // ── Line items ───────────────────────────────────────────────────────────
-    // null entries are omitted by JSON serialisation
     lineItems: {
       cpmMileage: {
-        // No rate figure in the label — broker CPM is internal pricing info
         label:  driverMode === 'team' ? 'Route Miles — Team CPM' : 'Route Miles — Solo CPM',
         rate:   brokerCpm,
         miles:  r2(totalMiles),
@@ -382,33 +370,27 @@ export default async function handler(req, res) {
         amount: detentionFee,
       } : null,
     },
-
-    // ── Totals ───────────────────────────────────────────────────────────────
     coreSubtotal,
     gasSurcharge,
     backhaulApplied: lowBackhaul,
-    brokerTotal:  finalQuote,           // broker-facing total (uses Broker CPM)
-    internalTotal: internalDriverCost,  // driver payout (uses Driver CPM)
-    totalQuote:   finalQuote,           // alias kept for QuoteResultCard compatibility
+    brokerTotal:   finalQuote,
+    internalTotal: internalDriverCost,
+    totalQuote:    finalQuote,
     finalQuote,
-
-    // ── Internal cost breakdown (individual components, Driver CPM basis) ─────
     internalDriverCost,
     internalCostBreakdown: {
-      routeMiles:   ic_routeMiles,
-      deadhead:     ic_deadhead,
-      truckCharge:  ic_truckCharge,
-      insurance:    ic_insurance,
-      gas:          ic_gas,
-      driverAssist: ic_driverAssist,
-      detention:    ic_detention,
-      hazmat:       ic_hazmat,
-      holdCharge:   ic_holdCharge,
-      backhaulGas:  ic_backhaulGas,
-      total:        internalDriverCost,
+      routeMiles:  ic_routeMiles,
+      deadhead:    ic_deadhead,
+      truckCharge: ic_truckCharge,
+      insurance:   ic_insurance,
+      gas:         ic_gas,
+      driverAssist:ic_driverAssist,
+      detention:   ic_detention,
+      hazmat:      ic_hazmat,
+      holdCharge:  ic_holdCharge,
+      backhaulGas: ic_backhaulGas,
+      total:       internalDriverCost,
     },
-
-    // ── Rates snapshot (audit trail + trip-duration formula display) ─────────
     ratesSnapshot: {
       jurisdiction,
       driverBaseCpm,
@@ -426,23 +408,12 @@ export default async function handler(req, res) {
     },
   }
 
-  // ── Audit log (fire-and-forget — non-fatal) ────────────────────────────────
   logAudit({
     action:      AUDIT.QUOTE_GENERATED,
     performedBy: caller.email,
     description: `Quote ${quoteId} generated — ${pl} → ${dl[dl.length - 1]} — Total: $${finalQuote.toFixed(2)}`,
   })
 
-  // ── Persist to Redis (awaited) ──────────────────────────────────────────────
-  //
-  // Storage is awaited so the admin dashboard can immediately see new quotes.
-  // Stored under:
-  //   quote:{quoteId}               — full payload (enables PDF regeneration)
-  //   quotes:driver:{email}         — ordered list of quote IDs per driver
-  //   quotes:platform:total         — platform-wide counter
-  //
-  // A storage failure is non-fatal: we log it and still return the payload to
-  // the driver so the quote is not lost from their screen.
   try {
     await Promise.all([
       redis.set(k.quote(quoteId), quotePayload),

@@ -2,42 +2,39 @@
  * POST /api/dispatch
  *
  * Routes by the `action` field in the request body:
- *   action: 'generate-pdf' — render a quote PDF and return it as a download
- *   action: 'send-quote'   — render the PDF and email it to the broker via Resend
+ *   action: 'generate-pdf' — fetch a saved quote by ID, render PDF, return download
+ *   action: 'send-quote'   — fetch a saved quote by ID, render PDF, email to broker
  *
- * Logo: LOGO_BASE64 is a PNG data URL loaded from src/assets/texlag-logo.png
- * at module initialisation time via logoBase64.js (no sharp, no runtime I/O
- * inside the handler).  Path uses process.cwd() so it survives ESM→CJS
- * transpilation on Vercel.
+ * Both actions require:
+ *   { quoteId: string }              — the saved quote ID (e.g. "20250601-001")
+ *   { brokerEmail: string }          — send-quote only
  *
- * Error strategy: every discrete stage is wrapped in its own try/catch so
- * the exact failure point appears in Vercel function logs.  A top-level catch
- * ensures any escaping error is still returned as JSON, never as an HTML page.
+ * Security: the quote is always loaded from Redis, never trusted from the
+ * client body.  Drivers may only access their own quotes; admins may access
+ * any quote.
  */
 
-import { Resend }      from 'resend'
-import { verifyToken } from './_lib/auth.js'
+import { Resend }             from 'resend'
+import redis                  from './_lib/redis.js'
+import { requireAuth }        from './_lib/auth.js'
 import { buildDocument, BRAND, fmt } from './_lib/buildQuotePDF.js'
-import { logAudit, AUDIT }           from './_lib/audit.js'
-import { LOGO_BASE64 }               from './_lib/logoBase64.js'
+import { logAudit, AUDIT }    from './_lib/audit.js'
+import { LOGO_BASE64 }        from './_lib/logoBase64.js'
+import { k }                  from './_lib/keys.js'
+import { setSecurityHeaders } from './_lib/headers.js'
 
 // ── Cold-start diagnostics ───────────────────────────────────────────────────
-// Logged once per container spin-up — visible in Vercel function logs.
 console.log('[dispatch] module loaded — LOGO_BASE64 present:', !!LOGO_BASE64,
   LOGO_BASE64 ? `(${LOGO_BASE64.length} chars)` : '(null — Image element will be omitted from PDF)')
 console.log('[dispatch] env — RESEND_API_KEY set:', !!process.env.RESEND_API_KEY,
   '| RESEND_FROM_EMAIL:', process.env.RESEND_FROM_EMAIL ?? '(not set — will use fallback)')
 
-const REQUIRED   = ['quoteId', 'pickup', 'dropoffs', 'lineItems', 'finalQuote']
-const EMAIL_RE   = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const EMAIL_RE          = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const RESEND_TIMEOUT_MS = 25_000
+// Fields the PDF builder requires — validated after fetching from Redis
+const REQUIRED = ['quoteId', 'pickup', 'dropoffs', 'lineItems', 'finalQuote']
 
 // ── PDF filename helper ───────────────────────────────────────────────────────
-// Builds a descriptive filename from the quote's resolved location strings.
-// Google Maps returns addresses like "Houston, TX, USA" — city is the first
-// comma-delimited segment.  Non-alphanumeric chars are stripped and spaces
-// replaced with hyphens so the filename is safe across all OS/browsers.
-// Falls back to plain quoteId if city names cannot be extracted.
 function extractCity(address) {
   if (!address || typeof address !== 'string') return null
   const city = address.split(',')[0].trim()
@@ -58,10 +55,6 @@ function pdfFilename(quote) {
   return `TexLag-Quote-${quote.quoteId}.pdf`
 }
 
-/**
- * Races `promise` against a hard timeout.
- * Rejects with a clear message if the timeout fires first.
- */
 function withTimeout(promise, ms, label = 'operation') {
   return Promise.race([
     promise,
@@ -72,6 +65,42 @@ function withTimeout(promise, ms, label = 'operation') {
       )
     ),
   ])
+}
+
+// ── Fetch quote from Redis and enforce ownership ──────────────────────────────
+// Drivers may only access their own quotes.  Admins may access any quote.
+async function loadAndAuthorizeQuote(quoteId, caller, res) {
+  if (!quoteId || typeof quoteId !== 'string' || !/^\d{8}-\d{3,}$/.test(quoteId.trim())) {
+    res.status(400).json({ error: '`quoteId` must be a valid quote ID (e.g. "20250601-001")' })
+    return null
+  }
+
+  let quote
+  try {
+    quote = await redis.get(k.quote(quoteId.trim()))
+  } catch {
+    res.status(502).json({ error: 'Database error' })
+    return null
+  }
+
+  if (!quote) {
+    res.status(404).json({ error: 'Quote not found' })
+    return null
+  }
+
+  // Drivers may only access their own quotes
+  if (caller.role !== 'admin' && quote.driver?.email?.toLowerCase() !== caller.email?.toLowerCase()) {
+    res.status(403).json({ error: 'You do not have permission to access this quote' })
+    return null
+  }
+
+  const missing = REQUIRED.filter(f => quote[f] == null)
+  if (missing.length) {
+    res.status(422).json({ error: 'Quote record is incomplete', missing })
+    return null
+  }
+
+  return quote
 }
 
 // ── Email HTML template ──────────────────────────────────────────────────────
@@ -193,43 +222,25 @@ function buildEmailHtml(quote, driverName) {
 
 // ── action: 'generate-pdf' ────────────────────────────────────────────────────
 
-async function handleGeneratePdf(req, res) {
+async function handleGeneratePdf(req, res, caller) {
   const tag = '[dispatch/generate-pdf]'
-  console.log(tag, 'handler entered')
+  console.log(tag, 'handler entered — caller:', caller.email)
 
-  // ── 1. Validate request body ─────────────────────────────────────────────
-  let quote, detentionHourlyRate
-  try {
-    ;({ quote, detentionHourlyRate = 75 } = req.body ?? {})
-    console.log(tag, 'body parsed — quoteId:', quote?.quoteId)
-  } catch (e) {
-    console.error(tag, 'body parse error:', e)
-    return res.status(400).json({ error: 'Invalid request body' })
-  }
+  const { quoteId, detentionHourlyRate = 75 } = req.body ?? {}
 
-  if (!quote || typeof quote !== 'object') {
-    return res.status(400).json({ error: '`quote` object is required in the request body' })
-  }
+  const quote = await loadAndAuthorizeQuote(quoteId, caller, res)
+  if (!quote) return   // loadAndAuthorizeQuote already wrote the error response
 
-  const missing = REQUIRED.filter(k => quote[k] == null)
-  if (missing.length) {
-    console.error(tag, 'missing fields:', missing)
-    return res.status(400).json({ error: 'Quote is missing required fields', missing })
-  }
-
-  // ── 2. Build the React element tree ─────────────────────────────────────
   let element
   try {
     console.log(tag, 'building PDF document element — logo available:', !!LOGO_BASE64)
     element = await buildDocument(quote, Number(detentionHourlyRate) || 75, LOGO_BASE64)
     console.log(tag, 'document element built OK')
   } catch (e) {
-    console.error(tag, 'buildDocument threw:', e.message)
-    console.error(tag, 'buildDocument stack:', e.stack)
-    return res.status(500).json({ error: `PDF document build failed: ${e.message}` })
+    console.error(tag, 'buildDocument threw:', e.message, e.stack)
+    return res.status(500).json({ error: 'PDF generation failed' })
   }
 
-  // ── 3. Render to buffer ──────────────────────────────────────────────────
   let buffer
   try {
     console.log(tag, 'calling renderToBuffer…')
@@ -237,12 +248,11 @@ async function handleGeneratePdf(req, res) {
     buffer = await renderToBuffer(element)
     console.log(tag, 'renderToBuffer complete — bytes:', buffer.length)
   } catch (e) {
-    console.error(tag, 'renderToBuffer threw:', e.message)
-    console.error(tag, 'renderToBuffer stack:', e.stack)
-    return res.status(500).json({ error: `PDF render failed: ${e.message}` })
+    console.error(tag, 'renderToBuffer threw:', e.message, e.stack)
+    return res.status(500).json({ error: 'PDF generation failed' })
   }
 
-  // ── 4. Stream the PDF back ───────────────────────────────────────────────
+  // Stream directly in the response — buffer is never written to disk
   const filename = pdfFilename(quote)
   console.log(tag, 'sending PDF — filename:', filename, '— bytes:', buffer.length)
   res.setHeader('Content-Type',        'application/pdf')
@@ -257,44 +267,33 @@ async function handleSendQuote(req, res, caller) {
   const tag = '[dispatch/send-quote]'
   console.log(tag, 'handler entered — caller:', caller.email)
 
-  // ── 1. Validate ──────────────────────────────────────────────────────────
-  const { quote, brokerEmail, detentionHourlyRate = 75 } = req.body ?? {}
+  const { quoteId, brokerEmail, detentionHourlyRate = 75 } = req.body ?? {}
 
   if (!brokerEmail || typeof brokerEmail !== 'string' || !EMAIL_RE.test(brokerEmail.trim())) {
     return res.status(400).json({ error: '`brokerEmail` must be a valid email address' })
   }
-  if (!quote || typeof quote !== 'object') {
-    return res.status(400).json({ error: '`quote` object is required in the request body' })
-  }
-  const missing = REQUIRED.filter(k => quote[k] == null)
-  if (missing.length) {
-    console.error(tag, 'missing fields:', missing)
-    return res.status(400).json({ error: 'Quote is missing required fields', missing })
-  }
+
+  const quote = await loadAndAuthorizeQuote(quoteId, caller, res)
+  if (!quote) return
 
   const resendKey = process.env.RESEND_API_KEY
   const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev'
-  // Env presence already logged at cold-start; log fromEmail again here so it
-  // appears near the actual send attempt in per-request log streams.
   console.log(tag, 'RESEND_API_KEY set:', !!resendKey, '| from:', fromEmail)
 
   if (!resendKey) {
-    return res.status(500).json({ error: 'RESEND_API_KEY is not configured' })
+    return res.status(500).json({ error: 'Email service is not configured' })
   }
 
-  // ── 2. Build PDF element ─────────────────────────────────────────────────
   let element
   try {
     console.log(tag, 'building PDF document element — logo available:', !!LOGO_BASE64)
     element = await buildDocument(quote, Number(detentionHourlyRate) || 75, LOGO_BASE64)
     console.log(tag, 'document element built OK')
   } catch (e) {
-    console.error(tag, 'buildDocument threw:', e.message)
-    console.error(tag, 'buildDocument stack:', e.stack)
-    return res.status(500).json({ error: `PDF document build failed: ${e.message}` })
+    console.error(tag, 'buildDocument threw:', e.message, e.stack)
+    return res.status(500).json({ error: 'PDF generation failed' })
   }
 
-  // ── 3. Render PDF ────────────────────────────────────────────────────────
   let pdfBuffer
   try {
     console.log(tag, 'calling renderToBuffer…')
@@ -302,21 +301,17 @@ async function handleSendQuote(req, res, caller) {
     pdfBuffer = await renderToBuffer(element)
     console.log(tag, 'renderToBuffer complete — bytes:', pdfBuffer.length)
   } catch (e) {
-    console.error(tag, 'renderToBuffer threw:', e.message)
-    console.error(tag, 'renderToBuffer stack:', e.stack)
-    return res.status(500).json({ error: `PDF render failed: ${e.message}` })
+    console.error(tag, 'renderToBuffer threw:', e.message, e.stack)
+    return res.status(500).json({ error: 'PDF generation failed' })
   }
 
-  // ── 4. Send email ────────────────────────────────────────────────────────
   const driverName = `${caller.firstName ?? ''} ${caller.lastName ?? ''}`.trim()
   const subject    = `Freight Quote — TexLag Express — ${quote.quoteId}`
   const filename   = pdfFilename(quote)
 
-  // TEST MODE: if RESEND_TEST_EMAIL is set, redirect all outbound mail to that
-  // address regardless of what the driver entered.  Useful when the sending
-  // domain is not yet verified with Resend in production.
-  const testOverride  = process.env.RESEND_TEST_EMAIL?.trim() || null
-  const effectiveTo   = testOverride ?? brokerEmail.trim()
+  // TEST MODE: redirect outbound mail to RESEND_TEST_EMAIL if set
+  const testOverride = process.env.RESEND_TEST_EMAIL?.trim() || null
+  const effectiveTo  = testOverride ?? brokerEmail.trim()
   if (testOverride) {
     console.log(tag, 'TEST MODE — redirecting email to:', testOverride)
   }
@@ -344,16 +339,12 @@ async function handleSendQuote(req, res, caller) {
     ))
   } catch (e) {
     console.error(tag, 'Resend threw:', e.message)
-    console.error(tag, 'Resend stack:', e.stack)
-    return res.status(502).json({ error: 'Email delivery failed', details: e.message })
+    return res.status(502).json({ error: 'Email delivery failed' })
   }
 
   if (sendError) {
     console.error(tag, 'Resend API error:', JSON.stringify(sendError))
-    return res.status(502).json({
-      error:   'Email delivery failed',
-      details: sendError.message ?? JSON.stringify(sendError),
-    })
+    return res.status(502).json({ error: 'Email delivery failed' })
   }
 
   console.log(tag, 'email sent — messageId:', data?.id)
@@ -378,8 +369,8 @@ async function handleSendQuote(req, res, caller) {
 // ── Router ────────────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
-  // Top-level catch — ensures any unhandled error returns JSON, never HTML.
-  // Individual stage try/catches above give precise failure-point logging.
+  setSecurityHeaders(res)
+
   try {
     console.log('[dispatch] request — method:', req.method,
       '| action:', req.body?.action, '| cwd:', process.cwd())
@@ -388,20 +379,15 @@ export default async function handler(req, res) {
       return res.status(405).json({ error: 'Method not allowed' })
     }
 
-    // ── Auth ───────────────────────────────────────────────────────────────
-    let caller
-    try {
-      caller = verifyToken(req)
-      console.log('[dispatch] auth OK — caller:', caller.email)
-    } catch (e) {
-      console.warn('[dispatch] auth failed:', e.message)
-      return res.status(e.status ?? 401).json({ error: e.message })
-    }
+    // ── Auth: verify JWT, active flag, token-invalidation-after-pw-change ──────
+    const caller = await requireAuth(req, res)
+    if (!caller) return
+    console.log('[dispatch] auth OK — caller:', caller.email, '| role:', caller.role)
 
     const { action } = req.body ?? {}
 
     switch (action) {
-      case 'generate-pdf': return await handleGeneratePdf(req, res)
+      case 'generate-pdf': return await handleGeneratePdf(req, res, caller)
       case 'send-quote':   return await handleSendQuote(req, res, caller)
       default:
         return res.status(400).json({
@@ -410,10 +396,9 @@ export default async function handler(req, res) {
         })
     }
   } catch (err) {
-    console.error('[dispatch] TOP-LEVEL UNHANDLED ERROR:', err.message)
-    console.error('[dispatch] stack:', err.stack)
+    console.error('[dispatch] TOP-LEVEL UNHANDLED ERROR:', err.message, err.stack)
     if (!res.headersSent) {
-      res.status(500).json({ error: err.message ?? 'Internal server error' })
+      res.status(500).json({ error: 'Internal server error' })
     }
   }
 }

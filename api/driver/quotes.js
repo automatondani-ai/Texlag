@@ -10,18 +10,17 @@
  * PATCH body: { quoteId: string, won: boolean }
  */
 
-import redis from '../_lib/redis.js'
-import { verifyToken } from '../_lib/auth.js'
-import { k } from '../_lib/keys.js'
+import redis              from '../_lib/redis.js'
+import { requireAuth }   from '../_lib/auth.js'
+import { k }             from '../_lib/keys.js'
+import { setSecurityHeaders } from '../_lib/headers.js'
 
 export default async function handler(req, res) {
-  // ── Auth ──────────────────────────────────────────────────────────────────
-  let caller
-  try {
-    caller = verifyToken(req)
-  } catch (e) {
-    return res.status(e.status ?? 401).json({ error: e.message })
-  }
+  setSecurityHeaders(res)
+
+  // ── Auth: checks active flag and token-invalidation-after-pw-change ──────────
+  const caller = await requireAuth(req, res)
+  if (!caller) return
 
   const email = caller.email?.toLowerCase().trim()
   if (!email) return res.status(401).json({ error: 'Token missing email claim' })
@@ -29,7 +28,6 @@ export default async function handler(req, res) {
   // ── GET — list all quotes for this driver ─────────────────────────────────
   if (req.method === 'GET') {
     try {
-      // quotes:driver:{email} is an LPUSH list — index 0 is newest
       const allIds = await redis.lrange(k.quotesDriver(email), 0, -1)
 
       if (!allIds.length) {
@@ -37,7 +35,7 @@ export default async function handler(req, res) {
       }
 
       const raw    = await redis.mget(...allIds.map(id => k.quote(id)))
-      const quotes = raw.filter(Boolean)   // drop any null (orphaned IDs)
+      const quotes = raw.filter(Boolean)
 
       return res.status(200).json({ quotes })
     } catch (e) {

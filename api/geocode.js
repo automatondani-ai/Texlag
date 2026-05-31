@@ -18,10 +18,13 @@
  * Error responses:
  *   400  — missing or unrecognised postal/ZIP format
  *   404  — code exists but Google returned no usable results
+ *   429  — rate limit exceeded
  *   502  — upstream Google Maps error
  */
 
-import { verifyToken } from './_lib/auth.js'
+import { requireAuth }        from './_lib/auth.js'
+import { setSecurityHeaders } from './_lib/headers.js'
+import { isRateLimited }      from './_lib/rateLimit.js'
 
 const GEOCODE_URL = 'https://maps.googleapis.com/maps/api/geocode/json'
 
@@ -31,7 +34,6 @@ const POSTAL_RE = /^(\d{5}|[A-Za-z]\d[A-Za-z][\s]?\d[A-Za-z]\d)$/
 // Normalise a Canadian postal code to "A1A 1A1" (upper-case, space between FSA and LDU)
 function normalisePostal(raw) {
   const upper = raw.toUpperCase().replace(/\s+/g, '')
-  // If 6 chars and not all digits it's a Canadian code — insert the space
   if (upper.length === 6 && !/^\d+$/.test(upper)) {
     return `${upper.slice(0, 3)} ${upper.slice(3)}`
   }
@@ -39,15 +41,21 @@ function normalisePostal(raw) {
 }
 
 export default async function handler(req, res) {
+  setSecurityHeaders(res)
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // ── Auth: any valid JWT ────────────────────────────────────────────────────
-  try {
-    verifyToken(req)
-  } catch (e) {
-    return res.status(e.status ?? 401).json({ error: e.message })
+  // ── Auth: any valid JWT (checks active flag + pw-change invalidation) ────────
+  const caller = await requireAuth(req, res)
+  if (!caller) return
+
+  // ── Rate limit: max 120 geocode requests per hour per user ──────────────────
+  const limited = await isRateLimited(`geocode:${caller.email}`, 120, 3600)
+  if (limited) {
+    res.setHeader('Retry-After', '3600')
+    return res.status(429).json({ error: 'Rate limit exceeded. Please try again later.' })
   }
 
   // ── Validate input ─────────────────────────────────────────────────────────
@@ -60,10 +68,9 @@ export default async function handler(req, res) {
   const postalCode = normalisePostal(zip.trim())
 
   // ── Call Google Maps Geocoding API ─────────────────────────────────────────
-  // No country bias — Google resolves both US and Canadian codes natively.
   const apiKey = process.env.GOOGLE_MAPS_API_KEY
   if (!apiKey) {
-    return res.status(500).json({ error: 'GOOGLE_MAPS_API_KEY is not configured' })
+    return res.status(500).json({ error: 'Server configuration error' })
   }
 
   let data
@@ -77,7 +84,7 @@ export default async function handler(req, res) {
     data = await r.json()
   } catch (err) {
     console.error('[geocode] fetch error:', err.message)
-    return res.status(502).json({ error: `Geocoding request failed: ${err.message}` })
+    return res.status(502).json({ error: 'Geocoding request failed' })
   }
 
   if (data.status !== 'OK' || !data.results?.length) {
@@ -86,10 +93,6 @@ export default async function handler(req, res) {
   }
 
   // ── Parse address components ───────────────────────────────────────────────
-  // Walk through all results until we find one with both a city and a
-  // state/province.  City preference order:
-  //   locality > sublocality_level_1 > administrative_area_level_3
-  // State/province: administrative_area_level_1 short_name (e.g. "TX", "ON")
   let city  = null
   let state = null
 

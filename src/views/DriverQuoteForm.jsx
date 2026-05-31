@@ -84,16 +84,19 @@ export default function DriverQuoteForm() {
   const [sendStatus,   setSendStatus]   = useState('')   // '' | 'ok' | 'err'
   const [sendMessage,  setSendMessage]  = useState('')
 
-  // Fetch admin-set driver assist rate once on mount for the read-only preview
+  // Fetch admin-set driver assist rate once on mount for the read-only preview.
+  // Auth header required — GET /api/rates now requires a valid JWT.
   useEffect(() => {
-    fetch('/api/rates')
+    const token = getToken()
+    if (!token) return
+    fetch('/api/rates', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(d => {
         const r = Number(d.rates?.driverAssistPerPallet)
         if (r > 0) setDriverAssistRate(r)
       })
       .catch(() => {})
-  }, [])
+  }, [getToken])
 
   // ── Dropoff helpers ────────────────────────────────────────────────────────
   const updateDropoff = (i, v) => {
@@ -244,7 +247,7 @@ export default function DriverQuoteForm() {
       const res = await fetch('/api/dispatch', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body:    JSON.stringify({ action: 'generate-pdf', quote }),
+        body:    JSON.stringify({ action: 'generate-pdf', quoteId: quote.quoteId }),
       })
       if (!res.ok) {
         // Server returned JSON error — read it and surface the message
@@ -281,7 +284,7 @@ export default function DriverQuoteForm() {
       const res  = await fetch('/api/dispatch', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body:    JSON.stringify({ action: 'send-quote', quote, brokerEmail: brokerEmail.trim() }),
+        body:    JSON.stringify({ action: 'send-quote', quoteId: quote.quoteId, brokerEmail: brokerEmail.trim() }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)

@@ -1,23 +1,26 @@
 /**
  * GET /api/admin/audit-log?page=1&limit=25
  *
- * Auth: Admin JWT
+ * Auth: Admin JWT (verified by requireAdmin — also checks active flag)
  *
  * Returns paginated audit log entries, newest first.
  * Entries are stored in the Redis list `audit_log:index` by audit.js.
  */
 
-import redis from '../_lib/redis.js'
-import { requireAdmin } from '../_lib/auth.js'
+import redis              from '../_lib/redis.js'
+import { requireAdmin }  from '../_lib/auth.js'
+import { setSecurityHeaders } from '../_lib/headers.js'
 
 const DEFAULT_LIMIT = 25
 
 export default async function handler(req, res) {
+  setSecurityHeaders(res)
+
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const admin = requireAdmin(req, res)
+  const admin = await requireAdmin(req, res)
   if (!admin) return
 
   const page  = Math.max(1, parseInt(req.query.page  ?? '1',  10) || 1)
@@ -36,7 +39,6 @@ export default async function handler(req, res) {
     const stop       = start + limit - 1
 
     const raw     = await redis.lrange('audit_log:index', start, stop)
-    // Upstash auto-parses JSON; guard for any raw strings just in case.
     const entries = raw.map(e => (typeof e === 'string' ? JSON.parse(e) : e))
 
     return res.status(200).json({ entries, total, page: safePage, totalPages })

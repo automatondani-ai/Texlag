@@ -36,9 +36,9 @@
 | `@react-pdf/renderer` | ^4.3.0 | Server-side PDF generation — **ESM-only package** |
 | `resend` | ^4.5.1 | Transactional email delivery |
 | `uuid` | ^11.1.0 | Used for unique IDs (audit keys use random string instead) |
-| `next-auth` | ^5.0.0-beta.25 | **UNUSED** — never imported anywhere, left over from early spike |
-| `@auth/core` | ^0.37.4 | **UNUSED** — dependency of next-auth spike, also dead |
-| `sharp` | ^0.34.5 | Likely **unused** — logo is loaded via `readFileSync` in `logoBase64.js`, not processed by sharp |
+| ~~`next-auth`~~ | removed | was unused; removed in security hardening |
+| ~~`@auth/core`~~ | removed | was unused; removed in security hardening |
+| ~~`sharp`~~ | removed | was unused; removed in security hardening |
 
 ### Dev Dependencies
 | Package | Version | Purpose |
